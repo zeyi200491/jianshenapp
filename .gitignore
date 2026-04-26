@@ -16,6 +16,7 @@ apps/ai-service/pytest-cache-files-*
 .logs/
 .npm-cache/
 .playwright-mcp/
+.playwright-cli/
 .pnpm-store/
 .tmp/
 pytest-cache-files-*

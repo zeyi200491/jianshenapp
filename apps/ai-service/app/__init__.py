@@ -1,0 +1,1 @@
+"""CampusFit AI Service."""

@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: campusfit-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-campusfit}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-campusfit_dev}"
+      POSTGRES_DB: "${POSTGRES_DB:-campusfit_ai}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-campusfit} -d ${POSTGRES_DB:-campusfit_ai}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./infra/postgres:/workspace/infra/postgres:ro
+
+volumes:
+  postgres-data:

@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@9.15.0 --activate
+
+      - name: Install Node dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Install AI service test dependencies
+        run: python -m pip install -e "apps/ai-service[dev]"
+
+      - name: Lint
+        run: corepack pnpm lint
+
+      - name: Typecheck
+        run: corepack pnpm typecheck
+
+      - name: Root smoke tests
+        run: corepack pnpm test
+
+      - name: API unit tests
+        run: corepack pnpm --dir apps/api test -- --runInBand
+
+      - name: Web smoke tests
+        run: node apps/web/tests/smoke.test.mjs
+
+      - name: AI service tests
+        run: python -m pytest apps/ai-service/tests
+
+      - name: Build
+        run: corepack pnpm build
+
+      - name: Validate local docker compose
+        run: docker compose config -q
+
+      - name: Validate production docker compose
+        run: docker compose -f infra/compose/docker-compose.prod.yml config -q

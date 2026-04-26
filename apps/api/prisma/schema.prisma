@@ -1,0 +1,350 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  nickname      String         @default("") @db.VarChar(64)
+  avatarUrl     String?        @map("avatar_url")
+  status        String         @default("active") @db.VarChar(32)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  authAccounts  AuthAccount[]
+  profile       UserProfile?
+  bodyMetrics   BodyMetric[]
+  dailyPlans    DailyPlan[]
+  checkIns      CheckIn[]
+  weeklyReviews WeeklyReview[]
+  weeklyReviewActionItems WeeklyReviewActionItem[]
+  mealIntakeOverrides MealIntakeOverride[]
+  aiConversations AiConversation[]
+  dataDeletionRequests DataDeletionRequest[]
+
+  @@map("users")
+}
+
+model DataDeletionRequest {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  status      String    @default("pending") @db.VarChar(32)
+  reason      String?
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("data_deletion_requests")
+}
+
+model AuthAccount {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  provider         String   @db.VarChar(32)
+  openId           String   @map("open_id") @db.VarChar(128)
+  unionId          String?  @map("union_id") @db.VarChar(128)
+  sessionKeyDigest String   @map("session_key_digest") @db.VarChar(255)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, openId])
+  @@map("auth_accounts")
+}
+
+model UserProfile {
+  id                    String    @id @default(uuid())
+  userId                String    @unique @map("user_id")
+  gender                String    @db.VarChar(16)
+  birthYear             Int       @map("birth_year")
+  heightCm              Decimal   @map("height_cm") @db.Decimal(5, 2)
+  currentWeightKg       Decimal   @map("current_weight_kg") @db.Decimal(5, 2)
+  targetType            String    @map("target_type") @db.VarChar(16)
+  activityLevel         String    @map("activity_level") @db.VarChar(32)
+  trainingExperience    String    @map("training_experience") @db.VarChar(32)
+  trainingDaysPerWeek   Int       @map("training_days_per_week")
+  dietScene             String    @map("diet_scene") @db.VarChar(32)
+  dietPreferences       Json      @map("diet_preferences")
+  dietRestrictions      Json      @map("diet_restrictions")
+  supplementOptIn       Boolean   @default(false) @map("supplement_opt_in")
+  trainingCycleStartFocus String?   @map("training_cycle_start_focus") @db.VarChar(16)
+  trainingCycleResetAt   DateTime? @map("training_cycle_reset_at")
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model BodyMetric {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  weightKg    Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  bodyFatRate Decimal? @map("body_fat_rate") @db.Decimal(5, 2)
+  source      String   @db.VarChar(32)
+  measuredAt  DateTime @map("measured_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("body_metrics")
+}
+
+model DailyPlan {
+  id                String       @id @default(uuid())
+  userId            String       @map("user_id")
+  planDate          DateTime     @map("plan_date") @db.Date
+  calorieTarget     Int          @map("calorie_target")
+  proteinTargetG    Int          @map("protein_target_g")
+  carbTargetG       Int          @map("carb_target_g")
+  fatTargetG        Int          @map("fat_target_g")
+  status            String       @default("active") @db.VarChar(32)
+  generationSource  String       @map("generation_source") @default("rule_engine") @db.VarChar(32)
+  generationVersion String       @map("generation_version") @db.VarChar(32)
+  generatedAt       DateTime     @map("generated_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dietPlan          DietPlan?
+  mealIntakeOverrides MealIntakeOverride[]
+  trainingPlan      TrainingPlan?
+  checkIns          CheckIn[]
+
+  @@unique([userId, planDate])
+  @@map("daily_plans")
+}
+
+model DietPlan {
+  id              String         @id @default(uuid())
+  dailyPlanId     String         @unique @map("daily_plan_id")
+  scene           String         @db.VarChar(32)
+  summary         String
+  supplementNotes Json           @map("supplement_notes")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  dailyPlan       DailyPlan      @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+  items           DietPlanItem[]
+
+  @@map("diet_plans")
+}
+
+model DietPlanItem {
+  id             String   @id @default(uuid())
+  dietPlanId     String   @map("diet_plan_id")
+  mealType       String   @map("meal_type") @db.VarChar(16)
+  title          String   @db.VarChar(128)
+  targetCalories Int      @map("target_calories")
+  proteinG       Int      @map("protein_g")
+  carbsG         Int      @map("carbs_g")
+  fatG           Int      @map("fat_g")
+  suggestionText String   @map("suggestion_text")
+  alternatives   Json
+  displayOrder   Int      @map("display_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  dietPlan       DietPlan @relation(fields: [dietPlanId], references: [id], onDelete: Cascade)
+
+  @@map("diet_plan_items")
+}
+
+model MealIntakeOverride {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  dailyPlanId      String   @map("daily_plan_id")
+  mealType         String   @map("meal_type") @db.VarChar(16)
+  source           String   @default("food_library") @db.VarChar(32)
+  foodCode         String   @map("food_code") @db.VarChar(64)
+  foodNameSnapshot String   @map("food_name_snapshot") @db.VarChar(128)
+  portionSize      String   @map("portion_size") @db.VarChar(16)
+  calories         Int
+  proteinG         Int      @map("protein_g")
+  carbG            Int      @map("carb_g")
+  fatG             Int      @map("fat_g")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyPlan        DailyPlan @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([dailyPlanId, mealType])
+  @@map("meal_intake_overrides")
+}
+
+model FoodLibraryItem {
+  id                 String   @id @default(uuid())
+  code               String   @unique @db.VarChar(64)
+  name               String   @db.VarChar(128)
+  aliases            Json     @default("[]")
+  sceneTags          Json     @default("[]") @map("scene_tags")
+  suggestedMealTypes Json     @default("[]") @map("suggested_meal_types")
+  calories           Int
+  proteinG           Int      @map("protein_g")
+  carbG              Int      @map("carb_g")
+  fatG               Int      @map("fat_g")
+  status             String   @default("active") @db.VarChar(32)
+  sortOrder          Int      @default(0) @map("sort_order")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("food_library_items")
+}
+
+model TrainingPlan {
+  id              String             @id @default(uuid())
+  dailyPlanId     String             @unique @map("daily_plan_id")
+  splitType       String             @map("split_type") @db.VarChar(32)
+  title           String             @db.VarChar(128)
+  durationMinutes Int                @map("duration_minutes")
+  intensityLevel  String             @map("intensity_level") @db.VarChar(16)
+  notes           String
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  dailyPlan       DailyPlan          @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+  items           TrainingPlanItem[]
+
+  @@map("training_plans")
+}
+
+model TrainingPlanItem {
+  id             String       @id @default(uuid())
+  trainingPlanId String       @map("training_plan_id")
+  exerciseCode   String       @map("exercise_code") @db.VarChar(64)
+  exerciseName   String       @map("exercise_name") @db.VarChar(128)
+  sets           Int
+  reps           String       @db.VarChar(32)
+  restSeconds    Int          @map("rest_seconds")
+  notes          String
+  displayOrder   Int          @map("display_order")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  trainingPlan   TrainingPlan @relation(fields: [trainingPlanId], references: [id], onDelete: Cascade)
+
+  @@map("training_plan_items")
+}
+
+model CheckIn {
+  id                     String    @id @default(uuid())
+  userId                 String    @map("user_id")
+  dailyPlanId            String    @map("daily_plan_id")
+  checkinDate            DateTime  @map("checkin_date") @db.Date
+  dietCompletionRate     Int       @map("diet_completion_rate")
+  trainingCompletionRate Int       @map("training_completion_rate")
+  waterIntakeMl          Int?      @map("water_intake_ml")
+  stepCount              Int?      @map("step_count")
+  weightKg               Decimal?  @map("weight_kg") @db.Decimal(5, 2)
+  energyLevel            Int?      @map("energy_level")
+  satietyLevel           Int?      @map("satiety_level")
+  fatigueLevel           Int?      @map("fatigue_level")
+  note                   String?
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyPlan              DailyPlan @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, checkinDate])
+  @@map("check_ins")
+}
+
+model WeeklyReview {
+  id                        String   @id @default(uuid())
+  userId                    String   @map("user_id")
+  weekStartDate             DateTime @map("week_start_date") @db.Date
+  weekEndDate               DateTime @map("week_end_date") @db.Date
+  planDays                  Int      @map("plan_days")
+  checkedInDays             Int      @map("checked_in_days")
+  avgDietCompletionRate     Int      @map("avg_diet_completion_rate")
+  avgTrainingCompletionRate Int      @map("avg_training_completion_rate")
+  weightChangeKg            Decimal  @map("weight_change_kg") @db.Decimal(5, 2)
+  highlights                Json
+  risks                     Json
+  recommendations           Json
+  narrativeText             String   @map("narrative_text")
+  generationVersion         String   @map("generation_version") @db.VarChar(32)
+  generatedAt               DateTime @map("generated_at")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionItems               WeeklyReviewActionItem[]
+
+  @@unique([userId, weekStartDate])
+  @@map("weekly_reviews")
+}
+
+model WeeklyReviewActionItem {
+  id             String       @id @default(uuid())
+  userId         String       @map("user_id")
+  weeklyReviewId String?      @map("weekly_review_id")
+  weekStartDate  DateTime     @map("week_start_date") @db.Date
+  title          String       @db.VarChar(160)
+  source         String       @default("system_generated") @db.VarChar(32)
+  status         String       @default("pending") @db.VarChar(16)
+  sortOrder      Int          @default(0) @map("sort_order")
+  completedAt    DateTime?    @map("completed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyReview   WeeklyReview? @relation(fields: [weeklyReviewId], references: [id], onDelete: SetNull)
+
+  @@index([userId, weekStartDate])
+  @@map("weekly_review_action_items")
+}
+
+model ProductCategory {
+  id        String    @id @default(uuid())
+  name      String    @db.VarChar(64)
+  slug      String    @unique @db.VarChar(64)
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  products  Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id            String          @id @default(uuid())
+  categoryId    String          @map("category_id")
+  name          String          @db.VarChar(128)
+  subtitle      String          @default("") @db.VarChar(255)
+  description   String          @default("")
+  targetTags    Json            @default("[]") @map("target_tags")
+  sceneTags     Json            @default("[]") @map("scene_tags")
+  priceCents    Int             @map("price_cents")
+  coverImageUrl String          @default("") @map("cover_image_url")
+  detailImages  Json            @default("[]") @map("detail_images")
+  status        String          @default("active") @db.VarChar(32)
+  sortOrder     Int             @default(0) @map("sort_order")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  category      ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("products")
+}
+
+model AiConversation {
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  title     String      @default("") @db.VarChar(128)
+  context   Json        @default("{}")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String         @id @default(uuid())
+  conversationId String         @map("conversation_id")
+  role           String         @db.VarChar(16)
+  content        String
+  citations      Json           @default("[]")
+  trace          Json           @default("[]")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_messages")
+}

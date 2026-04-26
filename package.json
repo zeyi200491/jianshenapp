@@ -1,0 +1,36 @@
+{
+  "name": "campusfit-ai",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel --filter=@campusfit/api --filter=@campusfit/admin --filter=@campusfit/web --filter=@campusfit/ai-service",
+    "dev:api": "turbo run dev --filter=@campusfit/api",
+    "dev:admin": "turbo run dev --filter=@campusfit/admin",
+    "dev:web": "turbo run dev --filter=@campusfit/web",
+    "dev:ai": "turbo run dev --filter=@campusfit/ai-service",
+    "build": "turbo run build --filter=@campusfit/api --filter=@campusfit/admin --filter=@campusfit/web --filter=@campusfit/ai-service",
+    "lint": "node scripts/lint.mjs",
+    "format": "node scripts/format.mjs",
+    "format:check": "node scripts/format-check.mjs",
+    "typecheck": "node scripts/typecheck.mjs",
+    "test": "node scripts/test.mjs",
+    "db:init": "node scripts/db-init.mjs",
+    "db:seed": "node scripts/db-seed.mjs",
+    "db:reset": "node scripts/local-postgres.mjs reset",
+    "dev:db": "node scripts/local-postgres.mjs start",
+    "db:status": "node scripts/local-postgres.mjs status",
+    "db:stop": "node scripts/local-postgres.mjs stop",
+    "smoke:local": "powershell -ExecutionPolicy Bypass -File scripts/smoke-local.ps1",
+    "smoke:web": "powershell -ExecutionPolicy Bypass -File scripts/web-http-smoke.ps1",
+    "start:local": "powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1"
+  },
+  "devDependencies": {
+    "pnpm": "^9.15.0",
+    "turbo": "^2.5.0"
+  }
+}

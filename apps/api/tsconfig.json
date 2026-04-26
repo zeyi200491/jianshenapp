@@ -1,0 +1,16 @@
+{
+  "extends": "../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "../../",
+    "baseUrl": "../../",
+    "noEmit": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "paths": {
+      "@campusfit/rule-engine": ["packages/rule-engine/src"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "exclude": ["src/**/*.spec.ts"]
+}

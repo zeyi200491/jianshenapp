@@ -1,0 +1,316 @@
+{
+  "documents": [
+    {
+      "id": "diet-sub-001",
+      "title": "食堂高蛋白替代原则",
+      "category": "diet",
+      "source": "knowledge://diet/substitution/canteen",
+      "keywords": ["食堂", "鸡胸肉", "替换", "替代", "蛋白质来源", "瘦牛肉", "清蒸鱼", "豆腐", "鸡蛋"],
+      "content": "食堂没有鸡胸肉时，优先在清蒸鱼、瘦牛肉、鸡蛋、豆腐里选 1-2 种高蛋白食物，核心目标是保住蛋白质摄入，而不是执着于单一食材。",
+      "intent_tags": ["diet_substitution", "general_knowledge"],
+      "scene_tags": ["canteen"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "先守住高蛋白来源，不用执着鸡胸肉本身",
+        "优先在清蒸鱼、瘦牛肉、鸡蛋、豆腐中选 1-2 个组合",
+        "替代时先保蛋白，再看总热量和烹饪油脂"
+      ],
+      "fallback_text": "如果食堂选择有限，先找最容易稳定拿到的高蛋白食物。"
+    },
+    {
+      "id": "diet-sub-002",
+      "title": "宿舍简化饮食方案",
+      "category": "diet",
+      "source": "knowledge://diet/dorm/quick-meal",
+      "keywords": ["宿舍", "简餐", "来不及做饭", "早餐", "酸奶", "鸡蛋", "全麦面包", "纯牛奶"],
+      "content": "宿舍场景优先选择即食鸡蛋、无糖酸奶、纯牛奶、全麦面包等组合，核心是降低准备成本，同时保住基础蛋白和碳水。",
+      "intent_tags": ["diet_substitution", "general_knowledge"],
+      "scene_tags": ["dorm"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "light",
+      "answer_points": [
+        "宿舍饮食先选准备成本低、容易坚持的组合",
+        "即食鸡蛋、无糖酸奶、纯牛奶和全麦面包足够构成基础一餐"
+      ],
+      "fallback_text": "宿舍场景先别追求复杂食谱，先让基础蛋白和主食稳定出现。"
+    },
+    {
+      "id": "diet-pre-001",
+      "title": "训练前简化进食原则",
+      "category": "diet",
+      "source": "knowledge://diet/pre-workout/simple",
+      "keywords": ["训练前", "练前", "空腹", "来不及吃", "香蕉", "面包", "酸奶"],
+      "content": "训练前如果时间紧，优先选择易消化的小份碳水和少量蛋白，比如香蕉、面包、酸奶；目标是避免训练中明显低能量，而不是把练前餐吃成正餐。",
+      "intent_tags": ["training_execution", "general_knowledge"],
+      "scene_tags": ["canteen", "dorm", "home"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "light",
+      "answer_points": [
+        "训练前时间紧时先解决明显低能量问题",
+        "小份碳水加少量蛋白通常比空腹硬顶更稳"
+      ],
+      "fallback_text": "如果你训练前来不及吃完整一餐，就先用小份、易消化的食物过渡。"
+    },
+    {
+      "id": "diet-post-001",
+      "title": "训练后恢复进食原则",
+      "category": "diet",
+      "source": "knowledge://diet/post-workout/recovery",
+      "keywords": ["训练后", "练后", "恢复", "晚饭", "蛋白", "碳水"],
+      "content": "训练后优先补足蛋白和适量碳水，目标是恢复和保证总摄入完成度，不需要执着某个补剂或固定神餐。",
+      "intent_tags": ["recovery_guidance", "general_knowledge"],
+      "scene_tags": ["canteen", "dorm", "home"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "训练后优先补蛋白和适量碳水",
+        "恢复期更重要的是把总摄入完成度做稳"
+      ],
+      "fallback_text": "训练后别纠结神奇搭配，先把蛋白和基础碳水补上。"
+    },
+    {
+      "id": "diet-sub-003",
+      "title": "减脂期外卖点单原则",
+      "category": "diet",
+      "source": "knowledge://diet/takeout/cutting",
+      "keywords": ["外卖", "怎么点", "点单", "减脂期", "套餐", "酱料", "双拼"],
+      "content": "减脂期点外卖时，优先选能看清主食、蛋白和蔬菜比例的套餐，酱料尽量分开，少选重油裹粉和大杯含糖饮料。",
+      "intent_tags": ["diet_substitution", "general_knowledge"],
+      "scene_tags": ["takeout", "office", "home"],
+      "goal_tags": ["cut", "减脂"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "外卖优先选能看清主食、蛋白和蔬菜比例的套餐",
+        "酱料分开、少选重油裹粉，比纠结某一家店更关键",
+        "优先保蛋白，再决定主食份量和饮料"
+      ],
+      "fallback_text": "点外卖先选结构清楚、蛋白看得见的套餐，不要先被口味带着走。"
+    },
+    {
+      "id": "diet-sub-004",
+      "title": "预算有限时的蛋白补齐策略",
+      "category": "diet",
+      "source": "knowledge://diet/budget/protein",
+      "keywords": ["预算", "学生党", "便宜", "蛋白质", "鸡蛋", "豆腐", "牛奶"],
+      "content": "学生党预算不高时，优先用鸡蛋、豆腐、纯牛奶、鸡腿肉这类性价比更高的蛋白来源，先把每天稳定吃到手，再考虑更贵的食材。",
+      "intent_tags": ["diet_substitution", "general_knowledge"],
+      "scene_tags": ["dorm", "canteen", "home"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "light",
+      "answer_points": [
+        "预算有限时先选鸡蛋、豆腐、纯牛奶、鸡腿肉这类性价比高的蛋白",
+        "便宜且能长期买得到，比偶尔吃一次高级食材更重要",
+        "先保每天稳定摄入，再考虑补剂和更贵食材"
+      ],
+      "fallback_text": "预算紧时先做高频、低成本、可持续的蛋白组合。"
+    },
+    {
+      "id": "diet-adjust-001",
+      "title": "减脂期体重停滞排查顺序",
+      "category": "diet",
+      "source": "knowledge://diet/cutting/plateau",
+      "keywords": ["体重没掉", "平台期", "降热量", "减脂一周", "停滞"],
+      "content": "减脂一周体重没掉时，不要第一反应继续猛砍热量。先看 7-14天平均体重趋势、盐分和饮水波动、步数与执行度，再决定是否调整热量。",
+      "intent_tags": ["general_knowledge", "diet_substitution"],
+      "scene_tags": ["canteen", "dorm", "home", "takeout"],
+      "goal_tags": ["cut", "减脂"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "减脂一周体重没掉时，先看 7-14天平均趋势，不急着继续降热量",
+        "先排查盐分、水分、步数和执行度，再决定要不要调整热量",
+        "真正需要调整时，优先做小幅度调整，而不是一次砍太狠"
+      ],
+      "fallback_text": "体重短期没动先看趋势和执行度，不要立刻做激进热量下调。"
+    },
+    {
+      "id": "diet-post-002",
+      "title": "夜间训练后的主食安排",
+      "category": "diet",
+      "source": "knowledge://diet/post-workout/night-carb",
+      "keywords": ["晚上训练", "夜训", "训练后吃主食", "晚间", "主食", "睡前"],
+      "content": "晚上训练后不必因为时间晚就完全不吃主食。只要总热量还在计划内，训练后补蛋白加适量主食通常比硬扛饥饿更利于恢复和第二天状态。",
+      "intent_tags": ["diet_substitution", "recovery_guidance", "general_knowledge"],
+      "scene_tags": ["canteen", "dorm", "home", "takeout"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "晚上训练后不必因为时间晚就完全不吃主食",
+        "训练后蛋白加适量主食，通常比硬扛更利于恢复",
+        "关键不是时间晚，而是总热量和份量是否还在计划内"
+      ],
+      "fallback_text": "夜训后先看总热量和恢复需求，不要简单把主食一刀切。"
+    },
+    {
+      "id": "train-001",
+      "title": "没有器械时的动作替代",
+      "category": "training",
+      "source": "knowledge://training/no-equipment",
+      "keywords": ["没有器械", "替代动作", "无器械", "俯卧撑", "深蹲", "门框划船", "弹力带"],
+      "content": "没有器械时，可用俯卧撑替代卧推、徒手深蹲替代深蹲、门框划船或弹力带划船替代下拉，重点是保留动作模式和目标肌群。",
+      "intent_tags": ["training_execution"],
+      "scene_tags": ["home", "no_gym"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "没器械时先保留动作模式，而不是直接放弃训练",
+        "主动作可以用徒手或弹力带版本顶上"
+      ],
+      "fallback_text": "器械不全时先保留动作模式和目标肌群，不要把整次训练直接取消。"
+    },
+    {
+      "id": "train-002",
+      "title": "20 分钟压缩训练原则",
+      "category": "training",
+      "source": "knowledge://training/time-box-20m",
+      "keywords": ["20分钟", "没时间", "压缩训练", "主动作", "组间休息", "训练做不完"],
+      "content": "时间紧时，优先保留 3-4 个关键动作，把组间休息压缩到 45-60 秒，先完成主动作和大肌群刺激，再考虑辅助动作。",
+      "intent_tags": ["training_execution"],
+      "scene_tags": ["gym", "home", "dorm"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "strong",
+      "answer_points": [
+        "时间紧时先保留 3-4 个关键动作",
+        "组间休息压到 45-60 秒，优先主动作和大肌群刺激",
+        "辅助动作最后裁剪，不先砍主任务"
+      ],
+      "fallback_text": "没时间时先收缩动作数量和组间休息，不要先把主动作删掉。"
+    },
+    {
+      "id": "train-003",
+      "title": "低精力日执行原则",
+      "category": "training",
+      "source": "knowledge://training/low-energy",
+      "keywords": ["疲劳", "低精力", "没精神", "训练量", "余力", "状态差"],
+      "content": "低精力日建议适度减组，不建议完全放弃训练。优先保留动作质量，每组保留 1-2 次余力，完成主任务即可。",
+      "intent_tags": ["training_execution", "recovery_guidance"],
+      "scene_tags": ["gym", "home", "dorm"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "strong",
+      "answer_points": [
+        "状态差时先减量，不先完全放弃训练",
+        "每组保留 1-2 次余力，优先保动作质量"
+      ],
+      "fallback_text": "低精力日的目标是保最低有效刺激，而不是硬拼满训练量。"
+    },
+    {
+      "id": "train-004",
+      "title": "酒店器械有限时的训练替代",
+      "category": "training",
+      "source": "knowledge://training/travel/hotel",
+      "keywords": ["出差", "酒店", "哑铃", "跑步机", "器械有限", "酒店健身房"],
+      "content": "出差住酒店、只有哑铃和跑步机时，先用哑铃推、哑铃划船、杯式深蹲和罗马尼亚硬拉保住主要动作模式，再用跑步机做 5-10 分钟热身或收尾。",
+      "intent_tags": ["training_execution"],
+      "scene_tags": ["hotel", "travel"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "strong",
+      "answer_points": [
+        "酒店器械有限时，先用哑铃版本保住推、拉、蹲、髋铰链",
+        "跑步机更适合做热身或收尾，不用把它当主训练内容",
+        "这类场景先保训练骨架，再谈细节刺激"
+      ],
+      "fallback_text": "出差训练先保动作骨架和完成度，不要因为器械不全就整天断档。"
+    },
+    {
+      "id": "recovery-001",
+      "title": "训练后酸痛处理原则",
+      "category": "recovery",
+      "source": "knowledge://recovery/soreness/basic",
+      "keywords": ["酸痛", "DOMS", "恢复", "拉伸", "走路", "训练后"],
+      "content": "普通延迟性酸痛更适合轻活动、补水、睡眠和正常进食，不建议因为普通酸痛就完全停掉所有活动。",
+      "intent_tags": ["recovery_guidance"],
+      "scene_tags": ["gym", "home", "dorm"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "普通酸痛优先轻活动、补水和睡眠",
+        "不要把一般酸痛自动当成必须完全停练的信号"
+      ],
+      "fallback_text": "普通酸痛先做恢复管理，不要直接把一切训练都停掉。"
+    },
+    {
+      "id": "recovery-002",
+      "title": "睡眠不足时的训练取舍",
+      "category": "recovery",
+      "source": "knowledge://recovery/sleep/performance",
+      "keywords": ["睡眠", "熬夜", "没睡好", "恢复", "训练状态"],
+      "content": "睡眠明显不足时，优先减少总量而不是硬顶强度；先保主动作，再缩短辅助动作和训练时长。",
+      "intent_tags": ["recovery_guidance", "training_execution"],
+      "scene_tags": ["gym", "home", "dorm"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "strong",
+      "answer_points": [
+        "睡眠不足时先减总量，不先拼强度",
+        "保主动作、缩辅助，是更稳的取舍方式"
+      ],
+      "fallback_text": "没睡好时先保训练骨架，再缩训练总量。"
+    },
+    {
+      "id": "supp-001",
+      "title": "补剂基础原则",
+      "category": "supplement",
+      "source": "knowledge://supplement/basic-principle",
+      "keywords": ["补剂", "蛋白粉", "肌酸", "需不需要", "饮食优先"],
+      "content": "CampusFit AI 对补剂的基本原则是饮食优先，补剂补充。只有在正常饮食难以覆盖蛋白或恢复需求时，才考虑使用基础补剂。",
+      "intent_tags": ["supplement_guidance"],
+      "scene_tags": ["canteen", "dorm", "home"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "medium",
+      "answer_points": [
+        "补剂不能替代正餐，先看饮食能不能完成目标",
+        "只有正常饮食补不上时，才考虑用基础补剂兜底"
+      ],
+      "fallback_text": "补剂优先级通常排在正常饮食之后。"
+    },
+    {
+      "id": "supp-002",
+      "title": "蛋白粉使用边界",
+      "category": "supplement",
+      "source": "knowledge://supplement/whey/basic",
+      "keywords": ["蛋白粉", "乳清", "要不要喝", "什么时候喝"],
+      "content": "蛋白粉更适合在正餐不方便、总蛋白不足或训练后临时补充时使用，它解决的是便利性问题，不是万能增肌开关。",
+      "intent_tags": ["supplement_guidance"],
+      "scene_tags": ["canteen", "dorm", "home"],
+      "goal_tags": ["cut", "maintain", "bulk", "减脂", "维持", "增肌"],
+      "plan_link_strength": "light",
+      "answer_points": [
+        "蛋白粉主要解决便利性，不是必需品",
+        "适合在正餐不方便或总蛋白不足时补充"
+      ],
+      "fallback_text": "如果正餐已经能把蛋白吃够，蛋白粉不是硬需求。"
+    },
+    {
+      "id": "supp-003",
+      "title": "肌酸使用原则",
+      "category": "supplement",
+      "source": "knowledge://supplement/creatine/basic",
+      "keywords": ["肌酸", "要不要吃肌酸", "训练表现", "补剂"],
+      "content": "肌酸更适合训练频率稳定、愿意长期规律补充的人，前提仍然是训练和饮食已经有基本执行度。",
+      "intent_tags": ["supplement_guidance"],
+      "scene_tags": ["gym", "home", "dorm"],
+      "goal_tags": ["maintain", "bulk", "维持", "增肌"],
+      "plan_link_strength": "light",
+      "answer_points": [
+        "肌酸更适合训练规律、愿意长期补充的人",
+        "如果训练和饮食执行还不稳，先把基础打牢"
+      ],
+      "fallback_text": "肌酸适合在训练已经稳定执行后再考虑。"
+    },
+    {
+      "id": "safe-001",
+      "title": "高风险问题处理边界",
+      "category": "safety",
+      "source": "knowledge://safety/boundary",
+      "keywords": ["医疗", "极端减脂", "断食", "催吐", "高风险"],
+      "content": "涉及医疗诊断、极端减脂、催吐、泻药、脱水和自伤内容时，AI 服务必须拒答并建议寻求专业帮助。",
+      "intent_tags": ["risk_boundary"],
+      "scene_tags": [],
+      "goal_tags": [],
+      "plan_link_strength": "none",
+      "answer_points": [
+        "高风险问题必须优先安全拦截"
+      ],
+      "fallback_text": "高风险问题不进入普通教练回答流程。"
+    }
+  ]
+}

@@ -30,6 +30,11 @@ type SearchRanking = {
   aliasContains: number;
 };
 
+type SearchResultEntry = {
+  item: MealFood;
+  ranking: SearchRanking;
+};
+
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -114,10 +119,7 @@ function buildSearchRanking(item: MealFood, normalizedKeyword: string, mealType?
   };
 }
 
-function compareSearchRanking(
-  left: { item: MealFood; ranking: SearchRanking },
-  right: { item: MealFood; ranking: SearchRanking },
-) {
+function compareSearchRanking(left: SearchResultEntry, right: SearchResultEntry) {
   const keys: Array<keyof SearchRanking> = [
     'mealTypeMatched',
     'nameExact',
@@ -171,12 +173,12 @@ export class FoodLibraryRepository {
         const haystacks = [item.name, ...item.aliases].map((entry) => entry.toLowerCase());
         return haystacks.some((entry) => entry.includes(normalizedKeyword));
       })
-      .map((item) => ({
+      .map((item: MealFood): SearchResultEntry => ({
         item,
         ranking: buildSearchRanking(item, normalizedKeyword, mealType),
       }))
       .sort(compareSearchRanking)
-      .map(({ item }) => item);
+      .map(({ item }: SearchResultEntry) => item);
   }
 
   async findFoodByCode(code: string): Promise<MealFood> {

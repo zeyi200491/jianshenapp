@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: jianshenapp-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && cd apps/api && npm run build
+    startCommand: cd apps/api && npm run start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_DATA_MODE
+        value: mock
+      - key: AUTH_EMAIL_PROVIDER
+        value: mock
+      - key: AUTH_EMAIL_DEV_CODE_VISIBLE
+        value: true
+      - key: SWAGGER_ENABLED
+        value: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        value: postgresql://campusfit:campusfit_dev@127.0.0.1:5432/campusfit_ai
+      - key: AI_SERVICE_BASE_URL
+        value: https://placeholder.invalid
+      - key: CORS_ORIGIN
+        value: https://placeholder.invalid
+      - key: ADMIN_EMAIL
+        value: zeyi20040910@gmail.com
+      - key: ADMIN_PASSWORD
+        value: CampusFit123456!
+  - type: web
+    name: jianshenapp-ai
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: apps/ai-service
+    buildCommand: pip install .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: AI_ENV
+        value: production
+      - key: AI_PROVIDER
+        value: mock
+      - key: AI_MODEL
+        value: campusfit-mock
+      - key: AI_CORS_ORIGINS
+        value: https://placeholder.invalid
+      - key: LOG_LEVEL
+        value: INFO

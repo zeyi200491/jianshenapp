@@ -28,6 +28,7 @@ tmp-*.log
 __pycache__/
 .pytest_cache/
 logs/
+output/
 
 .rtk/
 third_party/rtk/rtk.exe

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppException } from '../../common/utils/app.exception';
@@ -58,6 +59,14 @@ function buildConversationTitle(title: string | undefined, content?: string) {
   return resolved.slice(0, 64);
 }
 
+function isEphemeralConversationId(conversationId: string) {
+  return conversationId.startsWith('ephemeral:');
+}
+
+function buildEphemeralConversationId() {
+  return `ephemeral:${randomUUID()}`;
+}
+
 @Injectable()
 export class AiService {
   constructor(
@@ -67,16 +76,30 @@ export class AiService {
   ) {}
 
   async createConversation(userId: string, dto: CreateConversationDto) {
-    const conversation = await this.aiRepository.createConversation(
-      userId,
-      buildConversationTitle(dto.title),
-      compactContext(dto.context),
-    );
+    const title = buildConversationTitle(dto.title);
+    const context = compactContext(dto.context);
 
-    return serializeValue(this.mapConversation(conversation as ConversationRow | null));
+    try {
+      const conversation = await this.aiRepository.createConversation(userId, title, context);
+      return serializeValue(this.mapConversation(conversation as ConversationRow | null));
+    } catch {
+      const now = new Date();
+
+      return serializeValue({
+        id: buildEphemeralConversationId(),
+        title,
+        context,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   }
 
   async sendMessage(userId: string, conversationId: string, dto: SendMessageDto) {
+    if (isEphemeralConversationId(conversationId)) {
+      return serializeValue(await this.sendEphemeralMessage(userId, conversationId, dto));
+    }
+
     const conversation = await this.aiRepository.findConversationByIdAndUser(conversationId, userId);
     if (!conversation) {
       throw new AppException('NOT_FOUND', 'AI 会话不存在', 404);
@@ -107,6 +130,13 @@ export class AiService {
   }
 
   async listMessages(userId: string, conversationId: string) {
+    if (isEphemeralConversationId(conversationId)) {
+      return serializeValue({
+        conversationId,
+        messages: [],
+      });
+    }
+
     const conversation = await this.aiRepository.findConversationByIdAndUser(conversationId, userId);
     if (!conversation) {
       throw new AppException('NOT_FOUND', 'AI 会话不存在', 404);
@@ -118,6 +148,31 @@ export class AiService {
       conversationId,
       messages: messages.map((message: MessageRow) => this.mapMessage(message)),
     });
+  }
+
+  private async sendEphemeralMessage(userId: string, conversationId: string, dto: SendMessageDto) {
+    const now = new Date();
+    const aiResult = await this.askAi(userId, dto.content, compactContext(dto.context));
+
+    return {
+      conversationId,
+      userMessage: {
+        id: randomUUID(),
+        role: 'user',
+        content: dto.content,
+        citations: [],
+        trace: [],
+        createdAt: now,
+      },
+      assistantMessage: {
+        id: randomUUID(),
+        role: 'assistant',
+        content: aiResult.answer,
+        citations: aiResult.citations ?? [],
+        trace: aiResult.trace ?? [],
+        createdAt: new Date(),
+      },
+    };
   }
 
   private async askAi(userId: string, question: string, context: AiConversationContext): Promise<RagAnswerResult> {

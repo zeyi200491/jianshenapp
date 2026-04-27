@@ -1,28 +1,39 @@
 import type { LoginSession } from '@/lib/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3050/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://jianshenapp-api-production.up.railway.app/api/v1';
+const SESSION_STORAGE_KEY = 'campusfit-web-session';
 
 let cachedSession: LoginSession | null = null;
 
-function stripTokens(session: LoginSession): LoginSession {
-  return {
-    ...session,
-    accessToken: '',
-    refreshToken: '',
-  };
+function readSessionFromStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as LoginSession;
+  } catch {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return null;
+  }
 }
 
-function buildCookieBackedSession(): LoginSession {
-  return {
-    accessToken: '',
-    refreshToken: '',
-    user: {
-      id: '',
-      nickname: '',
-      avatarUrl: null,
-      hasCompletedOnboarding: false,
-    },
-  };
+function writeSessionToStorage(session: LoginSession | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (!session) {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
 export function getStoredSession() {
@@ -34,15 +45,18 @@ export function getStoredSession() {
     return cachedSession;
   }
 
-  return window.location.pathname === '/login' ? null : buildCookieBackedSession();
+  cachedSession = readSessionFromStorage();
+  return cachedSession;
 }
 
 export function setStoredSession(session: LoginSession) {
-  cachedSession = stripTokens(session);
+  cachedSession = session;
+  writeSessionToStorage(session);
 }
 
 export function clearStoredSession() {
   cachedSession = null;
+  writeSessionToStorage(null);
 
   if (typeof window === 'undefined') {
     return;

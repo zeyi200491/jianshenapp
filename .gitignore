@@ -30,6 +30,7 @@ __pycache__/
 logs/
 output/
 .codex-output/
+.worktrees/
 
 .rtk/
 third_party/rtk/rtk.exe

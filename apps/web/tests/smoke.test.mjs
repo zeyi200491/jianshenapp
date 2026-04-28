@@ -166,6 +166,7 @@ function main() {
   expectIncludes(dashboardShellSource, '/diet', 'Dashboard shell should route diet entry to /diet');
   expectIncludes(dashboardShellSource, 'APP_BRAND_NAME', 'Dashboard shell should expose the unified brand helper');
   expectIncludes(dashboardShellSource, 'aria-label="个人中心"', 'Dashboard shell should label the account icon');
+  expectIncludes(dashboardShellSource, '我的档案', 'Dashboard shell should give the account entry a clear text cue');
   expectIncludes(dashboardShellSource, 'aria-label="通知中心"', 'Dashboard shell should label the notification icon');
   expectIncludes(dashboardShellSource, 'id="main-content"', 'Dashboard shell should expose the main-content skip target');
   expectNotIncludes(dashboardShellSource, 'transition-all', 'Dashboard shell should not keep broad transition-all styles in shared components');

@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { DIET_PREFERENCES, DIET_RESTRICTIONS } from './diet-option.constants';
 
 const GENDERS = ['male', 'female', 'other'] as const;
 const TARGET_TYPES = ['cut', 'maintain', 'bulk'] as const;
@@ -70,14 +71,14 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
-  @IsIn(['high_protein', 'low_sugar', 'vegetarian', 'spicy', 'quick_meal'], { each: true })
+  @IsIn(DIET_PREFERENCES, { each: true })
   dietPreferences?: string[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
-  @IsIn(['peanut', 'milk', 'seafood', 'spicy', 'fried_food'], { each: true })
+  @IsIn(DIET_RESTRICTIONS, { each: true })
   dietRestrictions?: string[];
 
   @ApiPropertyOptional({ example: true })

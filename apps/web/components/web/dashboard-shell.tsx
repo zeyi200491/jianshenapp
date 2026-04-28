@@ -134,7 +134,7 @@ function NavigationIcon({ icon, active }: { icon: NavItem['icon']; active: boole
   );
 }
 
-function TopIcon({ type }: { type: 'spark' | 'bell' | 'gear' }) {
+function TopIcon({ type }: { type: 'spark' | 'bell' | 'user' }) {
   if (type === 'spark') {
     return (
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -161,15 +161,8 @@ function TopIcon({ type }: { type: 'spark' | 'bell' | 'gear' }) {
 
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v2" />
-      <path d="M12 20v2" />
-      <path d="m4.93 4.93 1.41 1.41" />
-      <path d="m17.66 17.66 1.41 1.41" />
-      <path d="M2 12h2" />
-      <path d="M20 12h2" />
-      <path d="m6.34 17.66-1.41 1.41" />
-      <path d="m19.07 4.93-1.41 1.41" />
+      <circle cx="12" cy="8.5" r="3.2" />
+      <path d="M5.5 19.5c1.2-3 3.7-4.5 6.5-4.5s5.3 1.5 6.5 4.5" />
     </svg>
   );
 }
@@ -403,11 +396,19 @@ export function DashboardShell({ currentPath, header, children, sidebarHint = '�
                 href="/account"
                 aria-current={isAccountPath ? 'page' : undefined}
                 className={cx(
-                  'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition',
-                  isAccountPath ? 'bg-white text-[#0f6f96] shadow-[0_12px_24px_rgba(17,75,115,0.08)]' : 'text-[#5f7690] hover:bg-white/70 hover:text-[#0f7ea5]',
+                  'inline-flex items-center gap-3 rounded-[22px] border px-4 py-3 text-sm transition',
+                  isAccountPath
+                    ? 'border-white/90 bg-white text-[#0f6f96] shadow-[0_14px_28px_rgba(17,75,115,0.1)]'
+                    : 'border-transparent bg-white/70 text-[#5f7690] hover:border-white/80 hover:bg-white hover:text-[#0f7ea5]',
                 )}
               >
-                个人中心
+                <span className={cx('grid h-9 w-9 place-items-center rounded-full', isAccountPath ? 'bg-[#e7f4fb]' : 'bg-[#edf4fa]')}>
+                  <TopIcon type="user" />
+                </span>
+                <span className="flex flex-col leading-tight">
+                  <span className="font-semibold text-[#17324d]">我的档案</span>
+                  <span className="text-[11px] text-[#6f8498]">个人中心</span>
+                </span>
               </Link>
             </div>
           </div>
@@ -428,11 +429,19 @@ export function DashboardShell({ currentPath, header, children, sidebarHint = '�
               title="个人中心"
               aria-current={isAccountPath ? 'page' : undefined}
               className={cx(
-                'grid h-11 w-11 place-items-center rounded-full bg-white shadow-[0_12px_24px_rgba(21,74,112,0.08)] transition',
-                isAccountPath ? 'text-[#0f6f96]' : 'text-[#61778f]',
+                'inline-flex items-center gap-3 rounded-full border px-4 py-2.5 shadow-[0_12px_24px_rgba(21,74,112,0.08)] transition',
+                isAccountPath
+                  ? 'border-[#b8dcee] bg-[#eaf6fd] text-[#0f6f96]'
+                  : 'border-white/90 bg-white text-[#425f7b] hover:border-[#c9dfed] hover:text-[#0f7ea5]',
               )}
             >
-              <TopIcon type="gear" />
+              <span className={cx('grid h-9 w-9 place-items-center rounded-full', isAccountPath ? 'bg-white' : 'bg-[#edf4fa]')}>
+                <TopIcon type="user" />
+              </span>
+              <span className="flex flex-col text-left leading-tight">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7a94a8]">Account</span>
+                <span className="text-sm font-semibold">我的档案</span>
+              </span>
             </Link>
             <button
               type="button"

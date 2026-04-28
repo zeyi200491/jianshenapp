@@ -13,6 +13,31 @@ function sortByDisplayOrder<T extends { displayOrder: number }>(items: T[]) {
   return [...items].sort((left, right) => left.displayOrder - right.displayOrder);
 }
 
+const weekdaySortOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+function getWeekdaySortOrder(weekday?: string | null) {
+  const index = weekday ? weekdaySortOrder.indexOf(weekday) : -1;
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+}
+
+function sortTemplateDays<T extends { weekday?: string | null; sortOrder?: number; dayIndex?: number }>(items: T[]) {
+  return [...items].sort((left, right) => {
+    const leftWeekday = getWeekdaySortOrder(left.weekday);
+    const rightWeekday = getWeekdaySortOrder(right.weekday);
+    if (leftWeekday !== rightWeekday) {
+      return leftWeekday - rightWeekday;
+    }
+
+    const leftSort = left.sortOrder ?? left.dayIndex ?? 0;
+    const rightSort = right.sortOrder ?? right.dayIndex ?? 0;
+    if (leftSort !== rightSort) {
+      return leftSort - rightSort;
+    }
+
+    return (left.dayIndex ?? 0) - (right.dayIndex ?? 0);
+  });
+}
+
 export class MockPrismaStore {
   private readonly users: any[] = [];
   private readonly authAccounts: any[] = [];
@@ -25,6 +50,11 @@ export class MockPrismaStore {
   private readonly foodLibraryItems: any[] = [];
   private readonly trainingPlans: any[] = [];
   private readonly trainingPlanItems: any[] = [];
+  private readonly userTrainingTemplates: any[] = [];
+  private readonly userTrainingTemplateDays: any[] = [];
+  private readonly userTrainingTemplateItems: any[] = [];
+  private readonly dailyTrainingOverrides: any[] = [];
+  private readonly dailyTrainingOverrideItems: any[] = [];
   private readonly checkIns: any[] = [];
   private readonly weeklyReviews: any[] = [];
   private readonly weeklyReviewActionItems: any[] = [];
@@ -175,7 +205,7 @@ export class MockPrismaStore {
           }
           return true;
         }) ?? null;
-      return plan ? { ...plan } : null;
+      return this.attachDailyPlanIncludes(plan, args.include);
     },
     findMany: async (args: any) => {
       return this.dailyPlans
@@ -461,6 +491,384 @@ export class MockPrismaStore {
       args.data.forEach((item: any) => {
         this.trainingPlanItems.push({
           id: randomUUID(),
+          createdAt: now,
+          ...item,
+        });
+      });
+      return { count: args.data.length };
+    },
+  };
+
+  readonly userTrainingTemplate = {
+    findUnique: async (args: any) => {
+      const template = this.userTrainingTemplates.find((item) => item.id === args.where.id) ?? null;
+      return this.attachUserTrainingTemplateIncludes(template, args.include);
+    },
+    findFirst: async (args: any) => {
+      const template =
+        this.userTrainingTemplates.find((item) => {
+          if (args.where?.id && item.id !== args.where.id) {
+            return false;
+          }
+          if (args.where?.userId && item.userId !== args.where.userId) {
+            return false;
+          }
+          if (args.where?.status && item.status !== args.where.status) {
+            return false;
+          }
+          if (typeof args.where?.isDefault === 'boolean' && item.isDefault !== args.where.isDefault) {
+            return false;
+          }
+          if (typeof args.where?.isEnabled === 'boolean' && item.isEnabled !== args.where.isEnabled) {
+            return false;
+          }
+          if (typeof args.where?.isActive === 'boolean' && item.isActive !== args.where.isActive) {
+            return false;
+          }
+          return true;
+        }) ?? null;
+      return this.attachUserTrainingTemplateIncludes(template, args.include);
+    },
+    findMany: async (args: any) => {
+      return this.userTrainingTemplates
+        .filter((item) => {
+          if (args.where?.userId && item.userId !== args.where.userId) {
+            return false;
+          }
+          if (args.where?.status && item.status !== args.where.status) {
+            return false;
+          }
+          if (typeof args.where?.isDefault === 'boolean' && item.isDefault !== args.where.isDefault) {
+            return false;
+          }
+          if (typeof args.where?.isEnabled === 'boolean' && item.isEnabled !== args.where.isEnabled) {
+            return false;
+          }
+          if (typeof args.where?.isActive === 'boolean' && item.isActive !== args.where.isActive) {
+            return false;
+          }
+          return true;
+        })
+        .map((item) => this.attachUserTrainingTemplateIncludes(item, args.include));
+    },
+    create: async (args: any) => {
+      const now = new Date();
+      const created = {
+        id: randomUUID(),
+        status: 'active',
+        isDefault: false,
+        isEnabled: false,
+        notes: '',
+        description: '',
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        ...args.data,
+      };
+      this.userTrainingTemplates.push(created);
+      return this.attachUserTrainingTemplateIncludes(created, args.include);
+    },
+    update: async (args: any) => {
+      const index = this.userTrainingTemplates.findIndex((item) => item.id === args.where.id);
+      const updated = {
+        ...this.userTrainingTemplates[index],
+        ...args.data,
+        updatedAt: new Date(),
+      };
+      this.userTrainingTemplates[index] = updated;
+      return this.attachUserTrainingTemplateIncludes(updated, args.include);
+    },
+  };
+
+  readonly userTrainingTemplateDay = {
+    findMany: async (args: any) => {
+      return this.userTrainingTemplateDays
+        .filter((item) => {
+          if (args.where?.templateId && item.templateId !== args.where.templateId) {
+            return false;
+          }
+          if (args.where?.weekday && item.weekday !== args.where.weekday) {
+            return false;
+          }
+          if (args.where?.dayType && item.dayType !== args.where.dayType) {
+            return false;
+          }
+          if (typeof args.where?.sortOrder === 'number' && item.sortOrder !== args.where.sortOrder) {
+            return false;
+          }
+          if (typeof args.where?.dayIndex === 'number' && item.dayIndex !== args.where.dayIndex) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => {
+          const leftWeekday = getWeekdaySortOrder(left.weekday);
+          const rightWeekday = getWeekdaySortOrder(right.weekday);
+          if (leftWeekday !== rightWeekday) {
+            return leftWeekday - rightWeekday;
+          }
+          const leftSort = left.sortOrder ?? left.dayIndex ?? 0;
+          const rightSort = right.sortOrder ?? right.dayIndex ?? 0;
+          if (leftSort !== rightSort) {
+            return leftSort - rightSort;
+          }
+          return (left.dayIndex ?? 0) - (right.dayIndex ?? 0);
+        })
+        .map((item) => this.attachUserTrainingTemplateDayIncludes(item, args.include));
+    },
+    create: async (args: any) => {
+      const now = new Date();
+      const created = {
+        id: randomUUID(),
+        weekday: 'monday',
+        dayType: 'rest',
+        sortOrder: 0,
+        dayIndex: 0,
+        splitType: null,
+        durationMinutes: null,
+        intensityLevel: null,
+        notes: '',
+        createdAt: now,
+        updatedAt: now,
+        ...args.data,
+      };
+      this.userTrainingTemplateDays.push(created);
+      return this.attachUserTrainingTemplateDayIncludes(created, args.include);
+    },
+    update: async (args: any) => {
+      const index = this.userTrainingTemplateDays.findIndex((item) => item.id === args.where.id);
+      const updated = {
+        ...this.userTrainingTemplateDays[index],
+        ...args.data,
+        updatedAt: new Date(),
+      };
+      this.userTrainingTemplateDays[index] = updated;
+      return this.attachUserTrainingTemplateDayIncludes(updated, args.include);
+    },
+  };
+
+  readonly userTrainingTemplateItem = {
+    findMany: async (args: any) => {
+      return this.userTrainingTemplateItems
+        .filter((item) => {
+          if (args.where?.templateDayId && item.templateDayId !== args.where.templateDayId) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map((item) => this.attachUserTrainingTemplateItemIncludes(item, args.include));
+    },
+    deleteMany: async (args: any) => {
+      let count = 0;
+      for (let index = this.userTrainingTemplateItems.length - 1; index >= 0; index -= 1) {
+        if (this.userTrainingTemplateItems[index].templateDayId !== args.where.templateDayId) {
+          continue;
+        }
+        this.userTrainingTemplateItems.splice(index, 1);
+        count += 1;
+      }
+      return { count };
+    },
+    createMany: async (args: any) => {
+      const now = new Date();
+      args.data.forEach((item: any) => {
+        this.userTrainingTemplateItems.push({
+          id: randomUUID(),
+          notes: '',
+          createdAt: now,
+          ...item,
+        });
+      });
+      return { count: args.data.length };
+    },
+  };
+
+  readonly dailyTrainingOverride = {
+    findUnique: async (args: any) => {
+      let override: any = null;
+      if (args.where?.id) {
+        override = this.dailyTrainingOverrides.find((item) => item.id === args.where.id) ?? null;
+      } else if (args.where?.dailyPlanId_status) {
+        override =
+          this.dailyTrainingOverrides.find(
+            (item) =>
+              item.dailyPlanId === args.where.dailyPlanId_status.dailyPlanId &&
+              item.status === args.where.dailyPlanId_status.status,
+          ) ?? null;
+      } else if (args.where?.dailyPlanId_sourceWeekday_status) {
+        override =
+          this.dailyTrainingOverrides.find(
+            (item) =>
+              item.dailyPlanId === args.where.dailyPlanId_sourceWeekday_status.dailyPlanId &&
+              item.sourceWeekday === args.where.dailyPlanId_sourceWeekday_status.sourceWeekday &&
+              item.status === args.where.dailyPlanId_sourceWeekday_status.status,
+          ) ?? null;
+      }
+      return this.attachDailyTrainingOverrideIncludes(override, args.include);
+    },
+    findFirst: async (args: any) => {
+      const override =
+        this.dailyTrainingOverrides.find((item) => {
+          if (args.where?.id && item.id !== args.where.id) {
+            return false;
+          }
+          if (args.where?.userId && item.userId !== args.where.userId) {
+            return false;
+          }
+          if (args.where?.dailyPlanId && item.dailyPlanId !== args.where.dailyPlanId) {
+            return false;
+          }
+          if (args.where?.status && item.status !== args.where.status) {
+            return false;
+          }
+          if (args.where?.sourceWeekday && item.sourceWeekday !== args.where.sourceWeekday) {
+            return false;
+          }
+          if (args.where?.dailyPlan?.userId) {
+            const dailyPlan = this.dailyPlans.find((plan) => plan.id === item.dailyPlanId);
+            if (!dailyPlan || dailyPlan.userId !== args.where.dailyPlan.userId) {
+              return false;
+            }
+          }
+          return true;
+        }) ?? null;
+      return this.attachDailyTrainingOverrideIncludes(override, args.include);
+    },
+    findMany: async (args: any) => {
+      return this.dailyTrainingOverrides
+        .filter((item) => {
+          if (args.where?.userId && item.userId !== args.where.userId) {
+            return false;
+          }
+          if (args.where?.dailyPlanId && item.dailyPlanId !== args.where.dailyPlanId) {
+            return false;
+          }
+          if (args.where?.status && item.status !== args.where.status) {
+            return false;
+          }
+          if (args.where?.sourceWeekday && item.sourceWeekday !== args.where.sourceWeekday) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => {
+          const leftActive = left.status === 'active' ? 0 : 1;
+          const rightActive = right.status === 'active' ? 0 : 1;
+          if (leftActive !== rightActive) {
+            return leftActive - rightActive;
+          }
+          return right.updatedAt.getTime() - left.updatedAt.getTime();
+        })
+        .map((item) => this.attachDailyTrainingOverrideIncludes(item, args.include));
+    },
+    create: async (args: any) => {
+      const now = new Date();
+      const created = {
+        id: randomUUID(),
+        status: 'active',
+        sourceWeekday: null,
+        notes: '',
+        createdAt: now,
+        updatedAt: now,
+        ...args.data,
+      };
+      this.dailyTrainingOverrides.push(created);
+      return this.attachDailyTrainingOverrideIncludes(created, args.include);
+    },
+    update: async (args: any) => {
+      const index = this.dailyTrainingOverrides.findIndex((item) => item.id === args.where.id);
+      const updated = {
+        ...this.dailyTrainingOverrides[index],
+        ...args.data,
+        updatedAt: new Date(),
+      };
+      this.dailyTrainingOverrides[index] = updated;
+      return this.attachDailyTrainingOverrideIncludes(updated, args.include);
+    },
+    upsert: async (args: any) => {
+      const index = this.dailyTrainingOverrides.findIndex((item) => {
+        if (args.where?.dailyPlanId_status) {
+          return (
+            item.dailyPlanId === args.where.dailyPlanId_status.dailyPlanId &&
+            item.status === args.where.dailyPlanId_status.status
+          );
+        }
+        if (args.where?.dailyPlanId_sourceWeekday_status) {
+          return (
+            item.dailyPlanId === args.where.dailyPlanId_sourceWeekday_status.dailyPlanId &&
+            item.sourceWeekday === args.where.dailyPlanId_sourceWeekday_status.sourceWeekday &&
+            item.status === args.where.dailyPlanId_sourceWeekday_status.status
+          );
+        }
+        if (args.where?.dailyPlanId) {
+          return item.dailyPlanId === args.where.dailyPlanId;
+        }
+        if (args.where?.id) {
+          return item.id === args.where.id;
+        }
+        return false;
+      });
+      const now = new Date();
+      if (index >= 0) {
+        const updated = {
+          ...this.dailyTrainingOverrides[index],
+          ...args.update,
+          updatedAt: now,
+        };
+        this.dailyTrainingOverrides[index] = updated;
+        return this.attachDailyTrainingOverrideIncludes(updated, args.include);
+      }
+
+      const created = {
+        id: randomUUID(),
+        status: 'active',
+        sourceWeekday: null,
+        notes: '',
+        createdAt: now,
+        updatedAt: now,
+        ...args.create,
+      };
+      this.dailyTrainingOverrides.push(created);
+      return this.attachDailyTrainingOverrideIncludes(created, args.include);
+    },
+  };
+
+  readonly dailyTrainingOverrideItem = {
+    findMany: async (args: any) => {
+      return this.dailyTrainingOverrideItems
+        .filter((item) => {
+          if (
+            args.where?.dailyTrainingOverrideId &&
+            item.dailyTrainingOverrideId !== args.where.dailyTrainingOverrideId
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map((item) => this.attachDailyTrainingOverrideItemIncludes(item, args.include));
+    },
+    deleteMany: async (args: any) => {
+      let count = 0;
+      for (let index = this.dailyTrainingOverrideItems.length - 1; index >= 0; index -= 1) {
+        if (
+          this.dailyTrainingOverrideItems[index].dailyTrainingOverrideId !==
+          args.where.dailyTrainingOverrideId
+        ) {
+          continue;
+        }
+        this.dailyTrainingOverrideItems.splice(index, 1);
+        count += 1;
+      }
+      return { count };
+    },
+    createMany: async (args: any) => {
+      const now = new Date();
+      args.data.forEach((item: any) => {
+        this.dailyTrainingOverrideItems.push({
+          id: randomUUID(),
+          notes: '',
           createdAt: now,
           ...item,
         });
@@ -800,6 +1208,20 @@ export class MockPrismaStore {
     if (include?.authAccounts) {
       result.authAccounts = this.authAccounts.filter((item) => item.userId === user.id).map((item) => ({ ...item }));
     }
+    if (include?.userTrainingTemplates) {
+      const templateInclude =
+        include.userTrainingTemplates === true ? undefined : include.userTrainingTemplates.include;
+      result.userTrainingTemplates = this.userTrainingTemplates
+        .filter((item) => item.userId === user.id)
+        .map((item) => this.attachUserTrainingTemplateIncludes(item, templateInclude));
+    }
+    if (include?.dailyTrainingOverrides) {
+      const overrideInclude =
+        include.dailyTrainingOverrides === true ? undefined : include.dailyTrainingOverrides.include;
+      result.dailyTrainingOverrides = this.dailyTrainingOverrides
+        .filter((item) => item.userId === user.id)
+        .map((item) => this.attachDailyTrainingOverrideIncludes(item, overrideInclude));
+    }
     return result;
   }
 
@@ -820,6 +1242,37 @@ export class MockPrismaStore {
     if (include?.trainingPlan) {
       const trainingPlan = this.trainingPlans.find((item) => item.dailyPlanId === plan.id) ?? null;
       result.trainingPlan = this.attachTrainingPlanIncludes(trainingPlan, include.trainingPlan.include);
+    }
+    if (include?.dailyTrainingOverrides) {
+      const overrideInclude =
+        include.dailyTrainingOverrides === true ? undefined : include.dailyTrainingOverrides.include;
+      result.dailyTrainingOverrides = this.dailyTrainingOverrides
+        .filter((item) => item.dailyPlanId === plan.id)
+        .sort((left, right) => {
+          const leftActive = left.status === 'active' ? 0 : 1;
+          const rightActive = right.status === 'active' ? 0 : 1;
+          if (leftActive !== rightActive) {
+            return leftActive - rightActive;
+          }
+          return right.updatedAt.getTime() - left.updatedAt.getTime();
+        })
+        .map((item) => this.attachDailyTrainingOverrideIncludes(item, overrideInclude));
+    }
+    if (include?.activeTrainingOverride) {
+      const override =
+        this.dailyTrainingOverrides
+          .filter((item) => item.dailyPlanId === plan.id)
+          .sort((left, right) => {
+            const leftActive = left.status === 'active' ? 0 : 1;
+            const rightActive = right.status === 'active' ? 0 : 1;
+            if (leftActive !== rightActive) {
+              return leftActive - rightActive;
+            }
+            return right.updatedAt.getTime() - left.updatedAt.getTime();
+          })[0] ?? null;
+      const overrideInclude =
+        include.activeTrainingOverride === true ? undefined : include.activeTrainingOverride.include;
+      result.activeTrainingOverride = this.attachDailyTrainingOverrideIncludes(override, overrideInclude);
     }
     return result;
   }
@@ -852,6 +1305,130 @@ export class MockPrismaStore {
     }
     if (include?.dailyPlan) {
       result.dailyPlan = this.dailyPlans.find((item) => item.id === trainingPlan.dailyPlanId) ?? null;
+    }
+    return result;
+  }
+
+  private attachUserTrainingTemplateIncludes(template: any, include?: any) {
+    if (!template) {
+      return null;
+    }
+    const result: any = { ...template };
+    if (include?.user) {
+      result.user = this.users.find((item) => item.id === template.userId) ?? null;
+    }
+    if (include?.days) {
+      const dayInclude = include.days === true ? undefined : include.days.include;
+      result.days = sortTemplateDays(
+        this.userTrainingTemplateDays.filter((item) => item.templateId === template.id),
+      ).map((item) => this.attachUserTrainingTemplateDayIncludes(item, dayInclude));
+    }
+    if (include?.overrides) {
+      const overrideInclude = include.overrides === true ? undefined : include.overrides.include;
+      result.overrides = this.dailyTrainingOverrides
+        .filter((item) => item.sourceTemplateId === template.id)
+        .sort((left, right) => {
+          const leftActive = left.status === 'active' ? 0 : 1;
+          const rightActive = right.status === 'active' ? 0 : 1;
+          if (leftActive !== rightActive) {
+            return leftActive - rightActive;
+          }
+          return right.updatedAt.getTime() - left.updatedAt.getTime();
+        })
+        .map((item) => this.attachDailyTrainingOverrideIncludes(item, overrideInclude));
+    }
+    return result;
+  }
+
+  private attachUserTrainingTemplateDayIncludes(templateDay: any, include?: any) {
+    if (!templateDay) {
+      return null;
+    }
+    const result: any = { ...templateDay };
+    if (include?.template) {
+      result.template = this.userTrainingTemplates.find((item) => item.id === templateDay.templateId) ?? null;
+    }
+    if (include?.items) {
+      const itemInclude = include.items === true ? undefined : include.items.include;
+      result.items = sortByDisplayOrder(
+        this.userTrainingTemplateItems.filter((item) => item.templateDayId === templateDay.id),
+      ).map((item) => this.attachUserTrainingTemplateItemIncludes(item, itemInclude));
+    }
+    if (include?.overrides) {
+      const overrideInclude = include.overrides === true ? undefined : include.overrides.include;
+      result.overrides = this.dailyTrainingOverrides
+        .filter((item) => item.sourceTemplateDayId === templateDay.id)
+        .sort((left, right) => {
+          const leftActive = left.status === 'active' ? 0 : 1;
+          const rightActive = right.status === 'active' ? 0 : 1;
+          if (leftActive !== rightActive) {
+            return leftActive - rightActive;
+          }
+          return right.updatedAt.getTime() - left.updatedAt.getTime();
+        })
+        .map((item) => this.attachDailyTrainingOverrideIncludes(item, overrideInclude));
+    }
+    return result;
+  }
+
+  private attachUserTrainingTemplateItemIncludes(templateItem: any, include?: any) {
+    if (!templateItem) {
+      return null;
+    }
+    const result: any = { ...templateItem };
+    if (include?.templateDay) {
+      result.templateDay =
+        this.userTrainingTemplateDays.find((item) => item.id === templateItem.templateDayId) ?? null;
+    }
+    if (include?.overrideItems) {
+      const itemInclude = include.overrideItems === true ? undefined : include.overrideItems.include;
+      result.overrideItems = this.dailyTrainingOverrideItems
+        .filter((item) => item.sourceTemplateItemId === templateItem.id)
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map((item) => this.attachDailyTrainingOverrideItemIncludes(item, itemInclude));
+    }
+    return result;
+  }
+
+  private attachDailyTrainingOverrideIncludes(override: any, include?: any) {
+    if (!override) {
+      return null;
+    }
+    const result: any = { ...override };
+    if (include?.user) {
+      result.user = this.users.find((item) => item.id === override.userId) ?? null;
+    }
+    if (include?.dailyPlan) {
+      result.dailyPlan = this.dailyPlans.find((item) => item.id === override.dailyPlanId) ?? null;
+    }
+    if (include?.sourceTemplate) {
+      result.sourceTemplate = this.userTrainingTemplates.find((item) => item.id === override.sourceTemplateId) ?? null;
+    }
+    if (include?.sourceTemplateDay) {
+      result.sourceTemplateDay =
+        this.userTrainingTemplateDays.find((item) => item.id === override.sourceTemplateDayId) ?? null;
+    }
+    if (include?.items) {
+      const itemInclude = include.items === true ? undefined : include.items.include;
+      result.items = sortByDisplayOrder(
+        this.dailyTrainingOverrideItems.filter((item) => item.dailyTrainingOverrideId === override.id),
+      ).map((item) => this.attachDailyTrainingOverrideItemIncludes(item, itemInclude));
+    }
+    return result;
+  }
+
+  private attachDailyTrainingOverrideItemIncludes(overrideItem: any, include?: any) {
+    if (!overrideItem) {
+      return null;
+    }
+    const result: any = { ...overrideItem };
+    if (include?.dailyTrainingOverride) {
+      result.dailyTrainingOverride =
+        this.dailyTrainingOverrides.find((item) => item.id === overrideItem.dailyTrainingOverrideId) ?? null;
+    }
+    if (include?.sourceTemplateItem) {
+      result.sourceTemplateItem =
+        this.userTrainingTemplateItems.find((item) => item.id === overrideItem.sourceTemplateItemId) ?? null;
     }
     return result;
   }
@@ -1118,5 +1695,3 @@ export class MockPrismaStore {
     );
   }
 }
-
-

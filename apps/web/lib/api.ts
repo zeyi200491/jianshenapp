@@ -56,6 +56,17 @@ export type TrainingFocus = 'push' | 'pull' | 'legs';
 export type MovementPattern = 'compound' | 'isolation' | 'recovery';
 export type RestRuleSource = 'system' | 'manual';
 export type IntensityLevel = 'low' | 'medium' | 'high';
+export type ActiveTrainingSource = 'system' | 'user_override';
+export type TrainingTemplateStatus = 'active' | 'archived';
+export type TrainingTemplateWeekday =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+export type TrainingTemplateDayType = 'training' | 'rest';
 
 export type LoginSession = {
   accessToken: string;
@@ -199,6 +210,26 @@ export type MealFoodSearchResult = {
   portions: string[];
 };
 
+export type TodayTrainingPlan = {
+  id: string;
+  title: string;
+  splitType: string;
+  durationMinutes: number;
+  intensityLevel: IntensityLevel;
+  notes: string;
+  items: Array<{
+    id: string;
+    name: string;
+    sets: number;
+    reps: string;
+    restSeconds: number;
+    movementPattern: MovementPattern;
+    restRuleSource: RestRuleSource;
+    restHint: string;
+    notes: string[];
+  }>;
+};
+
 export type TodayPayload = {
   date: string;
   dailyPlanId: string;
@@ -225,25 +256,10 @@ export type TodayPayload = {
     summary: string;
     days: WeeklyDietDay[];
   };
-  trainingPlan: {
-    id: string;
-    title: string;
-    splitType: string;
-    durationMinutes: number;
-    intensityLevel: IntensityLevel;
-    notes: string;
-    items: Array<{
-      id: string;
-      name: string;
-      sets: number;
-      reps: string;
-      restSeconds: number;
-      movementPattern: MovementPattern;
-      restRuleSource: RestRuleSource;
-      restHint: string;
-      notes: string[];
-    }>;
-  } | null;
+  trainingPlan: TodayTrainingPlan | null;
+  systemTrainingPlan: TodayTrainingPlan | null;
+  activeTrainingPlan: TodayTrainingPlan | null;
+  activeTrainingSource: ActiveTrainingSource;
   trainingCycle: TrainingCycleStatus;
   checkInStatus: {
     hasCheckedIn: boolean;
@@ -318,6 +334,61 @@ export type ConversationContext = {
   dietPlanId?: string;
   trainingPlanId?: string;
 };
+
+export type TrainingTemplateItemPayload = {
+  exerciseCode: string;
+  exerciseName: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  notes?: string;
+};
+
+export type TrainingTemplateDayPayload = {
+  weekday: TrainingTemplateWeekday;
+  dayType: TrainingTemplateDayType;
+  title: string;
+  splitType?: string | null;
+  durationMinutes?: number | null;
+  intensityLevel?: IntensityLevel | null;
+  notes?: string;
+  items: TrainingTemplateItemPayload[];
+};
+
+export type TrainingTemplatePayload = {
+  name: string;
+  status?: TrainingTemplateStatus;
+  isEnabled?: boolean;
+  isDefault?: boolean;
+  notes?: string;
+  days: TrainingTemplateDayPayload[];
+};
+
+export type TrainingTemplateDetail = {
+  id: string;
+  userId: string;
+  name: string;
+  status: TrainingTemplateStatus;
+  isEnabled: boolean;
+  isDefault: boolean;
+  notes: string;
+  days: Array<
+    TrainingTemplateDayPayload & {
+      id: string;
+      sortOrder?: number;
+      dayIndex?: number;
+      items: Array<TrainingTemplateItemPayload & { id: string; displayOrder?: number }>;
+    }
+  >;
+};
+
+export type TrainingTemplatePreview = {
+  templateId: string;
+  templateName: string;
+  date: string;
+  weekday: TrainingTemplateWeekday;
+  day: TrainingTemplateDetail['days'][number];
+} | null;
 
 export type Conversation = {
   id: string;
@@ -422,6 +493,107 @@ export async function resetTrainingCycle(token: string, startFocus: TrainingFocu
 export async function fetchToday(token: string, date?: string) {
   const suffix = date ? `?date=${date}` : '';
   return requestJson<TodayPayload>(`/today${suffix}`, { method: 'GET' }, token);
+}
+
+export async function fetchTrainingTemplates(token: string) {
+  return requestJson<TrainingTemplateDetail[]>('/users/me/training-templates', { method: 'GET' }, token);
+}
+
+export async function fetchTrainingTemplateDetail(token: string, templateId: string) {
+  return requestJson<TrainingTemplateDetail>(`/users/me/training-templates/${templateId}`, { method: 'GET' }, token);
+}
+
+export async function createTrainingTemplate(token: string, payload: TrainingTemplatePayload) {
+  return requestJson<TrainingTemplateDetail>(
+    '/users/me/training-templates',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function updateTrainingTemplate(token: string, templateId: string, payload: Partial<TrainingTemplatePayload>) {
+  return requestJson<TrainingTemplateDetail>(
+    `/users/me/training-templates/${templateId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function enableTrainingTemplate(token: string, templateId: string) {
+  return requestJson<TrainingTemplateDetail>(
+    `/users/me/training-templates/${templateId}/enable`,
+    {
+      method: 'POST',
+    },
+    token,
+  );
+}
+
+export async function setDefaultTrainingTemplate(token: string, templateId: string) {
+  return requestJson<TrainingTemplateDetail>(
+    `/users/me/training-templates/${templateId}/set-default`,
+    {
+      method: 'POST',
+    },
+    token,
+  );
+}
+
+export async function previewTrainingTemplate(
+  token: string,
+  params: { date: string; templateId?: string; weekday?: TrainingTemplateWeekday },
+) {
+  const search = new URLSearchParams();
+  search.set('date', params.date);
+  if (params.templateId) {
+    search.set('templateId', params.templateId);
+  }
+  if (params.weekday) {
+    search.set('weekday', params.weekday);
+  }
+
+  return requestJson<TrainingTemplatePreview>(`/users/me/training-template-preview?${search.toString()}`, { method: 'GET' }, token);
+}
+
+export async function applyTrainingOverride(
+  token: string,
+  dailyPlanId: string,
+  payload: { templateId: string; weekday: TrainingTemplateWeekday },
+) {
+  return requestJson<{
+    dailyPlanId: string;
+    activeTrainingSource: ActiveTrainingSource;
+    systemTrainingPlan: TodayTrainingPlan | null;
+    activeTrainingPlan: TodayTrainingPlan | null;
+  }>(
+    `/daily-plans/${dailyPlanId}/training-override`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function removeTrainingOverride(token: string, dailyPlanId: string) {
+  return requestJson<{
+    dailyPlanId: string;
+    activeTrainingSource: ActiveTrainingSource;
+    systemTrainingPlan: TodayTrainingPlan | null;
+    activeTrainingPlan: TodayTrainingPlan | null;
+  }>(
+    `/daily-plans/${dailyPlanId}/training-override`,
+    {
+      method: 'DELETE',
+    },
+    token,
+  );
 }
 
 export async function regeneratePlan(token: string, date: string) {

@@ -1,10 +1,11 @@
 import { calculateNutritionTargets, generateWeeklyDietPlan, getDisplayDietSceneLabel, resolveTrainingItemMetadata } from '@campusfit/rule-engine';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { parseDateOnly, toDateOnlyString } from '../../common/utils/date.util';
 import { serializeValue } from '../../common/utils/serialize.util';
 import { CheckInsRepository } from '../check-ins/check-ins.repository';
 import { buildDietPlanMeals, buildEffectiveDailyTotals } from '../meal-intakes/meal-intake-presenter';
 import { PlansService } from '../plans/plans.service';
+import { TrainingOverridesRepository } from '../training-overrides/training-overrides.repository';
 import { WeeklyReviewsRepository } from '../weekly-reviews/weekly-reviews.repository';
 
 function buildMealTarget(item: {
@@ -16,12 +17,47 @@ function buildMealTarget(item: {
   return `${item.targetCalories} kcal / P${item.proteinG} C${item.carbsG} F${item.fatG}`;
 }
 
+function mapTrainingPlan(plan: any) {
+  if (!plan) {
+    return null;
+  }
+
+  return {
+    id: plan.id,
+    title: plan.title,
+    splitType: plan.splitType,
+    durationMinutes: plan.durationMinutes,
+    intensityLevel: plan.intensityLevel,
+    notes: plan.notes,
+    items: (plan.items ?? []).map((item: any) => {
+      const metadata = resolveTrainingItemMetadata({
+        exerciseCode: item.exerciseCode,
+        exerciseName: item.exerciseName,
+        restSeconds: item.restSeconds,
+      });
+
+      return {
+        id: item.id,
+        name: item.exerciseName,
+        sets: item.sets,
+        reps: item.reps,
+        restSeconds: metadata.restSeconds,
+        movementPattern: metadata.movementPattern,
+        restRuleSource: metadata.restRuleSource,
+        restHint: metadata.restHint,
+        notes: item.notes ? [item.notes] : [],
+      };
+    }),
+  };
+}
+
 @Injectable()
 export class TodayService {
   constructor(
     private readonly plansService: PlansService,
     private readonly checkInsRepository: CheckInsRepository,
     private readonly weeklyReviewsRepository: WeeklyReviewsRepository,
+    @Optional() private readonly trainingOverridesRepository?: TrainingOverridesRepository,
   ) {}
 
   async getToday(userId: string, date?: string) {
@@ -45,6 +81,14 @@ export class TodayService {
           carbG: plan.carbTargetG,
           fatG: plan.fatTargetG,
         };
+    const activeOverride =
+      plan.activeTrainingOverride ??
+      (this.trainingOverridesRepository
+        ? await this.trainingOverridesRepository.findActiveByDailyPlanIdAndUser(plan.id, userId)
+        : null);
+    const systemTrainingPlan = mapTrainingPlan(plan.trainingPlan);
+    const activeTrainingPlan = mapTrainingPlan(activeOverride ?? plan.trainingPlan);
+    const activeTrainingSource = activeOverride ? 'user_override' : 'system';
 
     return serializeValue({
       date: toDateOnlyString(targetDate),
@@ -86,43 +130,10 @@ export class TodayService {
           }
         : null,
       weeklyDietPlan,
-      trainingPlan: plan.trainingPlan
-        ? {
-            id: plan.trainingPlan.id,
-            title: plan.trainingPlan.title,
-            splitType: plan.trainingPlan.splitType,
-            durationMinutes: plan.trainingPlan.durationMinutes,
-            intensityLevel: plan.trainingPlan.intensityLevel,
-            notes: plan.trainingPlan.notes,
-            items: plan.trainingPlan.items.map((item: {
-              id: string;
-              exerciseCode: string;
-              exerciseName: string;
-              sets: number;
-              reps: string;
-              restSeconds: number;
-              notes: string;
-            }) => {
-              const metadata = resolveTrainingItemMetadata({
-                exerciseCode: item.exerciseCode,
-                exerciseName: item.exerciseName,
-                restSeconds: item.restSeconds,
-              });
-
-              return {
-                id: item.id,
-                name: item.exerciseName,
-                sets: item.sets,
-                reps: item.reps,
-                restSeconds: metadata.restSeconds,
-                movementPattern: metadata.movementPattern,
-                restRuleSource: metadata.restRuleSource,
-                restHint: metadata.restHint,
-                notes: item.notes ? [item.notes] : [],
-              };
-            }),
-          }
-        : null,
+      trainingPlan: activeTrainingPlan,
+      systemTrainingPlan,
+      activeTrainingPlan,
+      activeTrainingSource,
       trainingCycle,
       checkInStatus: {
         hasCheckedIn: Boolean(checkIn),

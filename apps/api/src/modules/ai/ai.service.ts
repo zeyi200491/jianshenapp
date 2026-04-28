@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppException } from '../../common/utils/app.exception';
 import { serializeValue } from '../../common/utils/serialize.util';
 import { PlansRepository } from '../plans/plans.repository';
+import { TrainingOverridesRepository } from '../training-overrides/training-overrides.repository';
 import type { AiConversationContext } from './dto/ai-context.dto';
 import type { CreateConversationDto } from './dto/create-conversation.dto';
 import type { SendMessageDto } from './dto/send-message.dto';
@@ -67,12 +68,34 @@ function buildEphemeralConversationId() {
   return `ephemeral:${randomUUID()}`;
 }
 
+function mapActiveTrainingPlan(trainingPlan: any) {
+  if (!trainingPlan) {
+    return null;
+  }
+
+  return {
+    plan_id: trainingPlan.id,
+    title: trainingPlan.title,
+    split_type: trainingPlan.splitType,
+    duration_min: trainingPlan.durationMinutes,
+    summary: trainingPlan.notes,
+    items: (trainingPlan.items ?? []).map((item: any) => ({
+      name: item.exerciseName,
+      sets: item.sets,
+      reps: item.reps,
+      equipment: null,
+      note: item.notes,
+    })),
+  };
+}
+
 @Injectable()
 export class AiService {
   constructor(
     private readonly aiRepository: AiRepository,
     private readonly prisma: PrismaService,
     private readonly plansRepository: PlansRepository,
+    private readonly trainingOverridesRepository: TrainingOverridesRepository,
   ) {}
 
   async createConversation(userId: string, dto: CreateConversationDto) {
@@ -188,7 +211,12 @@ export class AiService {
     const dietPlan = context.dietPlanId
       ? await this.plansRepository.findDietPlanByIdAndUser(context.dietPlanId, userId)
       : null;
-    const trainingPlan = context.trainingPlanId
+    const activeTrainingOverride = context.dailyPlanId
+      ? await this.trainingOverridesRepository.findActiveByDailyPlanIdAndUser(context.dailyPlanId, userId)
+      : null;
+    const trainingPlan = activeTrainingOverride
+      ? activeTrainingOverride
+      : context.trainingPlanId
       ? await this.plansRepository.findTrainingPlanByIdAndUser(context.trainingPlanId, userId)
       : null;
 
@@ -229,27 +257,7 @@ export class AiService {
               })),
             }
           : null,
-        training_plan: trainingPlan
-          ? {
-              plan_id: trainingPlan.id,
-              title: trainingPlan.title,
-              split_type: trainingPlan.splitType,
-              duration_min: trainingPlan.durationMinutes,
-              summary: trainingPlan.notes,
-              items: trainingPlan.items.map((item: {
-                exerciseName: string;
-                sets: number;
-                reps: string;
-                notes: string;
-              }) => ({
-                name: item.exerciseName,
-                sets: item.sets,
-                reps: item.reps,
-                equipment: null,
-                note: item.notes,
-              })),
-            }
-          : null,
+        training_plan: mapActiveTrainingPlan(trainingPlan),
       }),
       signal: AbortSignal.timeout(10000),
     }).catch((error) => {

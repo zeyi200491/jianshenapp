@@ -18,10 +18,12 @@ model User {
   profile       UserProfile?
   bodyMetrics   BodyMetric[]
   dailyPlans    DailyPlan[]
+  userTrainingTemplates UserTrainingTemplate[]
   checkIns      CheckIn[]
   weeklyReviews WeeklyReview[]
   weeklyReviewActionItems WeeklyReviewActionItem[]
   mealIntakeOverrides MealIntakeOverride[]
+  dailyTrainingOverrides DailyTrainingOverride[]
   aiConversations AiConversation[]
   dataDeletionRequests DataDeletionRequest[]
 
@@ -114,6 +116,7 @@ model DailyPlan {
   dietPlan          DietPlan?
   mealIntakeOverrides MealIntakeOverride[]
   trainingPlan      TrainingPlan?
+  dailyTrainingOverrides DailyTrainingOverride[]
   checkIns          CheckIn[]
 
   @@unique([userId, planDate])
@@ -223,6 +226,111 @@ model TrainingPlanItem {
   trainingPlan   TrainingPlan @relation(fields: [trainingPlanId], references: [id], onDelete: Cascade)
 
   @@map("training_plan_items")
+}
+
+model UserTrainingTemplate {
+  id          String                    @id @default(uuid())
+  userId      String                    @map("user_id")
+  name        String                    @db.VarChar(128)
+  status      String                    @default("active") @db.VarChar(32)
+  isDefault   Boolean                   @default(false) @map("is_default")
+  isEnabled   Boolean                   @default(false) @map("is_enabled")
+  notes       String                    @default("")
+  description String                    @default("")
+  isActive    Boolean                   @default(true) @map("is_active")
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @updatedAt @map("updated_at")
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days        UserTrainingTemplateDay[]
+  overrides   DailyTrainingOverride[]
+
+  @@index([userId, status, isEnabled])
+  @@index([userId, isDefault])
+  @@map("user_training_templates")
+}
+
+model UserTrainingTemplateDay {
+  id              String                     @id @default(uuid())
+  templateId      String                     @map("template_id")
+  weekday         String                     @db.VarChar(16)
+  dayType         String                     @map("day_type") @db.VarChar(16)
+  sortOrder       Int                        @default(0) @map("sort_order")
+  dayIndex        Int                        @map("day_index")
+  splitType       String?                    @map("split_type") @db.VarChar(32)
+  title           String                     @db.VarChar(128)
+  durationMinutes Int?                       @map("duration_minutes")
+  intensityLevel  String?                    @map("intensity_level") @db.VarChar(16)
+  notes           String                     @default("")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  template        UserTrainingTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  items           UserTrainingTemplateItem[]
+  overrides       DailyTrainingOverride[]
+
+  @@unique([templateId, weekday])
+  @@index([templateId, sortOrder])
+  @@map("user_training_template_days")
+}
+
+model UserTrainingTemplateItem {
+  id             String                      @id @default(uuid())
+  templateDayId  String                      @map("template_day_id")
+  exerciseCode   String                      @map("exercise_code") @db.VarChar(64)
+  exerciseName   String                      @map("exercise_name") @db.VarChar(128)
+  sets           Int
+  reps           String                      @db.VarChar(32)
+  restSeconds    Int                         @map("rest_seconds")
+  notes          String                      @default("")
+  displayOrder   Int                         @map("display_order")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  templateDay    UserTrainingTemplateDay     @relation(fields: [templateDayId], references: [id], onDelete: Cascade)
+  overrideItems  DailyTrainingOverrideItem[]
+
+  @@map("user_training_template_items")
+}
+
+model DailyTrainingOverride {
+  id                 String                    @id @default(uuid())
+  userId             String                    @map("user_id")
+  dailyPlanId        String                    @map("daily_plan_id")
+  status             String                    @default("active") @db.VarChar(32)
+  sourceWeekday      String?                   @map("source_weekday") @db.VarChar(16)
+  sourceTemplateId   String?                   @map("source_template_id")
+  sourceTemplateDayId String?                  @map("source_template_day_id")
+  splitType          String                    @map("split_type") @db.VarChar(32)
+  title              String                    @db.VarChar(128)
+  durationMinutes    Int                       @map("duration_minutes")
+  intensityLevel     String                    @map("intensity_level") @db.VarChar(16)
+  notes              String                    @default("")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+  user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyPlan          DailyPlan                 @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+  sourceTemplate     UserTrainingTemplate?     @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  sourceTemplateDay  UserTrainingTemplateDay?  @relation(fields: [sourceTemplateDayId], references: [id], onDelete: SetNull)
+  items              DailyTrainingOverrideItem[]
+
+  @@index([userId, dailyPlanId, status])
+  @@index([dailyPlanId, status])
+  @@map("daily_training_overrides")
+}
+
+model DailyTrainingOverrideItem {
+  id                      String                    @id @default(uuid())
+  dailyTrainingOverrideId String                    @map("daily_training_override_id")
+  sourceTemplateItemId    String?                   @map("source_template_item_id")
+  exerciseCode            String                    @map("exercise_code") @db.VarChar(64)
+  exerciseName            String                    @map("exercise_name") @db.VarChar(128)
+  sets                    Int
+  reps                    String                    @db.VarChar(32)
+  restSeconds             Int                       @map("rest_seconds")
+  notes                   String                    @default("")
+  displayOrder            Int                       @map("display_order")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  dailyTrainingOverride   DailyTrainingOverride     @relation(fields: [dailyTrainingOverrideId], references: [id], onDelete: Cascade)
+  sourceTemplateItem      UserTrainingTemplateItem? @relation(fields: [sourceTemplateItemId], references: [id], onDelete: SetNull)
+
+  @@map("daily_training_override_items")
 }
 
 model CheckIn {

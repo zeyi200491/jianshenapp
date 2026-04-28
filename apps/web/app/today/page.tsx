@@ -91,11 +91,18 @@ export default function TodayPage() {
     aiGuide,
     aiError,
     aiLoading,
+    templatePreview,
+    selectedTemplateWeekday,
     isPending,
+    activeTrainingSource,
+    systemTrainingPlan,
     isCutTarget,
     isStrengthTarget,
     handleRegenerate,
     handleGenerateTodayTraining,
+    handleSelectTemplateWeekday,
+    handleApplyTemplateToToday,
+    handleRestoreSystemTraining,
     handleProfileSubmit,
     generateAiGuide,
   } = useTodayDashboard({
@@ -183,11 +190,18 @@ export default function TodayPage() {
 
             <TrainingPlanPanel
               trainingPlan={payload.trainingPlan}
+              systemTrainingPlan={systemTrainingPlan}
+              activeTrainingSource={activeTrainingSource}
+              templatePreview={templatePreview}
+              selectedTemplateWeekday={selectedTemplateWeekday}
               isCardioPlan={isCardioPlan}
               isStrengthTarget={isStrengthTarget}
               selectedFocus={selectedFocus}
               focusOptions={focusOptions}
               onSelectFocus={setSelectedFocus}
+              onSelectTemplateWeekday={handleSelectTemplateWeekday}
+              onApplyTemplateToToday={handleApplyTemplateToToday}
+              onRestoreSystemTraining={handleRestoreSystemTraining}
               onGenerateTodayTraining={handleGenerateTodayTraining}
               onRegenerate={handleRegenerate}
               disabled={isPending || loading}
@@ -214,4 +228,3 @@ export default function TodayPage() {
     </DashboardShell>
   );
 }
-

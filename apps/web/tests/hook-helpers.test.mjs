@@ -38,10 +38,13 @@ try {
       '    this.details = details;',
       '  }',
       '}',
+      'export async function applyTrainingOverride() { throw new Error("stub"); }',
       'export async function createConversation() { throw new Error("stub"); }',
       'export async function fetchCurrentUser() { throw new Error("stub"); }',
       'export async function fetchToday() { throw new Error("stub"); }',
+      'export async function previewTrainingTemplate() { throw new Error("stub"); }',
       'export async function regeneratePlan() { throw new Error("stub"); }',
+      'export async function removeTrainingOverride() { throw new Error("stub"); }',
       'export async function resetTrainingCycle() { throw new Error("stub"); }',
       'export async function sendConversationMessage() { throw new Error("stub"); }',
       'export async function updateProfile() { throw new Error("stub"); }',
@@ -114,12 +117,13 @@ try {
       todayModule.buildConversationContext({
         dailyPlanId: 'daily-1',
         dietPlan: { id: 'diet-1' },
+        activeTrainingPlan: { id: 'override-1' },
         trainingPlan: { id: 'training-1' },
       }),
       {
         dailyPlanId: 'daily-1',
         dietPlanId: 'diet-1',
-        trainingPlanId: 'training-1',
+        trainingPlanId: 'override-1',
       },
     );
 

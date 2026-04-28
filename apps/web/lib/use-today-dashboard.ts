@@ -3,17 +3,23 @@
 import { useEffect, useState, useTransition } from 'react';
 import {
   ApiError,
+  applyTrainingOverride,
   createConversation,
   fetchCurrentUser,
   fetchToday,
+  previewTrainingTemplate,
   regeneratePlan,
+  removeTrainingOverride,
   resetTrainingCycle,
   sendConversationMessage,
+  type ActiveTrainingSource,
   updateProfile,
   type CurrentUserPayload,
   type OnboardingPayload,
   type TodayPayload,
   type TrainingFocus,
+  type TrainingTemplatePreview,
+  type TrainingTemplateWeekday,
   type UpdateProfilePayload,
 } from '@/lib/api';
 import { clearStoredSession, getStoredSession, setStoredSessionOnboardingStatus } from '@/lib/auth';
@@ -43,7 +49,7 @@ const defaultProfileForm: ProfileFormState = {
 
 export function normalizeTodayDashboardMessage(error: unknown) {
   return describeUserFacingError(error, {
-    whatHappened: '今日页暂时没能完成同步。',
+    whatHappened: '今日页暂时没有完成同步。',
     nextStep: '稍后刷新页面再试，必要时重新进入今日页。',
     dataStatus: '你已经保存的资料和历史记录不会丢失。',
   });
@@ -76,10 +82,11 @@ export function buildProfilePayload(form: ProfileFormState): UpdateProfilePayloa
 }
 
 export function buildConversationContext(payload: TodayPayload) {
+  const trainingPlan = payload.activeTrainingPlan ?? payload.trainingPlan;
   return {
     dailyPlanId: payload.dailyPlanId,
     dietPlanId: payload.dietPlan?.id,
-    trainingPlanId: payload.trainingPlan?.id,
+    trainingPlanId: trainingPlan?.id,
   };
 }
 
@@ -92,7 +99,7 @@ export function buildAiPrompt(payload: TodayPayload, trainingFocusLabels: Record
     ? trainingFocusLabels[payload.trainingCycle.currentFocus]
     : payload.trainingPlan?.title ?? '今天训练';
 
-  return `用户今天主动选择了${focusText}。请基于当前训练计划，输出一份可以直接照做的 AI 训练提示。要求：1. 先给 5-8 分钟热身；2. 按顺序列出主训练动作；3. 每个动作补一句执行要点；4. 给出建议节奏、组间休息和训练后恢复建议；5. 全程使用简洁中文分点回答。`;
+  return `用户今天主动选择了 ${focusText}。请基于当前训练计划，输出一份可以直接照做的 AI 训练提示。要求：1. 先给 5-8 分钟热身；2. 按顺序列出主训练动作；3. 每个动作补一句执行要点；4. 给出建议节奏、组间休息和训练后恢复建议；5. 全程使用简洁中文分点回答。`;
 }
 
 export function useTodayDashboard({
@@ -116,7 +123,27 @@ export function useTodayDashboard({
   const [aiError, setAiError] = useState('');
   const [aiGuidePlanId, setAiGuidePlanId] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [templatePreview, setTemplatePreview] = useState<TrainingTemplatePreview>(null);
+  const [selectedTemplateWeekday, setSelectedTemplateWeekday] = useState<TrainingTemplateWeekday | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  async function loadTrainingTemplatePreview(accessToken: string, targetDate: string, weekday?: TrainingTemplateWeekday) {
+    try {
+      const preview = await previewTrainingTemplate(accessToken, { date: targetDate, weekday });
+      setTemplatePreview(preview);
+      setSelectedTemplateWeekday(preview?.weekday ?? null);
+      return preview;
+    } catch (previewError) {
+      setTemplatePreview(null);
+      setSelectedTemplateWeekday(null);
+
+      if (previewError instanceof ApiError && previewError.code === 'VALIDATION_ERROR') {
+        setFocusMessage(previewError.message);
+      }
+
+      return null;
+    }
+  }
 
   async function load(targetDate: string): Promise<TodayPayload | null> {
     const session = getStoredSession();
@@ -138,6 +165,7 @@ export function useTodayDashboard({
       setCurrentUser(userPayload);
       setProfileForm(buildProfileForm(userPayload.profile));
       setSelectedFocus(todayPayload.trainingCycle.startFocus ?? todayPayload.trainingCycle.currentFocus ?? 'push');
+      await loadTrainingTemplatePreview(session.accessToken, targetDate);
 
       if (todayPayload.trainingPlan?.id !== aiGuidePlanId) {
         setAiGuide('');
@@ -157,11 +185,7 @@ export function useTodayDashboard({
         router.replace('/onboarding');
         return null;
       }
-      setError(describeUserFacingError(loadError, {
-        whatHappened: '今日页暂时没有完成同步。',
-        nextStep: '稍后刷新页面重试，必要时重新进入今日页。',
-        dataStatus: '你已经保存的资料和历史记录不会丢失。',
-      }));
+      setError(normalizeTodayDashboardMessage(loadError));
       return null;
     } finally {
       setLoading(false);
@@ -199,6 +223,82 @@ export function useTodayDashboard({
     } finally {
       setAiLoading(false);
     }
+  }
+
+  function handleSelectTemplateWeekday(weekday: TrainingTemplateWeekday) {
+    const session = getStoredSession();
+    if (!session) {
+      router.replace('/login');
+      return;
+    }
+
+    startTransition(async () => {
+      setFocusMessage('');
+      await loadTrainingTemplatePreview(session.accessToken, date, weekday);
+    });
+  }
+
+  function handleApplyTemplateToToday() {
+    const session = getStoredSession();
+    if (!session) {
+      router.replace('/login');
+      return;
+    }
+    if (!payload?.dailyPlanId || !templatePreview) {
+      return;
+    }
+
+    setFocusMessage('');
+
+    startTransition(async () => {
+      try {
+        await applyTrainingOverride(session.accessToken, payload.dailyPlanId, {
+          templateId: templatePreview.templateId,
+          weekday: (selectedTemplateWeekday ?? templatePreview.weekday) as TrainingTemplateWeekday,
+        });
+        const reloaded = await load(date);
+        if (reloaded) {
+          await generateAiGuide(reloaded);
+        }
+        setFocusMessage('已切换为你的个人训练模板。');
+      } catch (requestError) {
+        setError(describeUserFacingError(requestError, {
+          whatHappened: '个人训练模板还没有成功应用到今天。',
+          nextStep: '稍后重试，或先检查模板当天内容是否完整。',
+          dataStatus: '系统原训练方案仍然保留，没有被删除。',
+        }));
+      }
+    });
+  }
+
+  function handleRestoreSystemTraining() {
+    const session = getStoredSession();
+    if (!session) {
+      router.replace('/login');
+      return;
+    }
+    if (!payload?.dailyPlanId) {
+      return;
+    }
+
+    setFocusMessage('');
+
+    startTransition(async () => {
+      try {
+        await removeTrainingOverride(session.accessToken, payload.dailyPlanId);
+        const reloaded = await load(date);
+        if (reloaded) {
+          await generateAiGuide(reloaded);
+        }
+        setFocusMessage('已恢复系统生成的今日训练方案。');
+      } catch (requestError) {
+        setError(describeUserFacingError(requestError, {
+          whatHappened: '系统训练方案还没有恢复成功。',
+          nextStep: '稍后重试，或先刷新今日页再操作一次。',
+          dataStatus: '你已有的训练记录不会因此丢失。',
+        }));
+      }
+    });
   }
 
   function handleRegenerate() {
@@ -251,7 +351,7 @@ export function useTodayDashboard({
         if (reloaded) {
           await generateAiGuide(reloaded);
         }
-        setFocusMessage(`已按${trainingFocusLabels[selectedFocus]}生成今天的 AI 训练计划。`);
+        setFocusMessage(`已按 ${trainingFocusLabels[selectedFocus]} 生成今天的 AI 训练计划。`);
       } catch (requestError) {
         setError(describeUserFacingError(requestError, {
           whatHappened: '今日训练计划还没有切换成功。',
@@ -325,12 +425,19 @@ export function useTodayDashboard({
     aiGuide,
     aiError,
     aiLoading,
+    templatePreview,
+    selectedTemplateWeekday,
     isPending,
+    activeTrainingSource: (payload?.activeTrainingSource ?? 'system') as ActiveTrainingSource,
+    systemTrainingPlan: payload?.systemTrainingPlan ?? null,
     isCutTarget: currentUser?.profile?.targetType === 'cut',
     isStrengthTarget: currentUser?.profile?.targetType !== 'cut',
     load,
     handleRegenerate,
     handleGenerateTodayTraining,
+    handleSelectTemplateWeekday,
+    handleApplyTemplateToToday,
+    handleRestoreSystemTraining,
     handleProfileSubmit,
     generateAiGuide,
   };

@@ -1,7 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import type { TodayPayload, TrainingFocus } from '@/lib/api';
+import type {
+  ActiveTrainingSource,
+  TodayPayload,
+  TrainingFocus,
+  TrainingTemplatePreview,
+  TrainingTemplateWeekday,
+} from '@/lib/api';
 import { AccentGlyph, DashboardCard, MetricPill, PanelTag } from '@/components/web/dashboard-shell';
 
 type FocusOption = {
@@ -13,13 +19,30 @@ type FocusOption = {
 
 type TodayTrainingPlan = TodayPayload['trainingPlan'];
 
+const weekdayLabels: Record<TrainingTemplateWeekday, string> = {
+  monday: '周一',
+  tuesday: '周二',
+  wednesday: '周三',
+  thursday: '周四',
+  friday: '周五',
+  saturday: '周六',
+  sunday: '周日',
+};
+
 type TrainingPlanPanelProps = {
   trainingPlan: TodayTrainingPlan | null;
+  systemTrainingPlan: TodayTrainingPlan | null;
+  activeTrainingSource: ActiveTrainingSource;
+  templatePreview: TrainingTemplatePreview;
+  selectedTemplateWeekday: TrainingTemplateWeekday | null;
   isCardioPlan: boolean;
   isStrengthTarget: boolean;
   selectedFocus: TrainingFocus;
   focusOptions: FocusOption[];
   onSelectFocus: (focus: TrainingFocus) => void;
+  onSelectTemplateWeekday: (weekday: TrainingTemplateWeekday) => void;
+  onApplyTemplateToToday: () => void;
+  onRestoreSystemTraining: () => void;
   onGenerateTodayTraining: () => void;
   onRegenerate: () => void;
   disabled: boolean;
@@ -30,11 +53,18 @@ type TrainingPlanPanelProps = {
 
 export function TrainingPlanPanel({
   trainingPlan,
+  systemTrainingPlan,
+  activeTrainingSource,
+  templatePreview,
+  selectedTemplateWeekday,
   isCardioPlan,
   isStrengthTarget,
   selectedFocus,
   focusOptions,
   onSelectFocus,
+  onSelectTemplateWeekday,
+  onApplyTemplateToToday,
+  onRestoreSystemTraining,
   onGenerateTodayTraining,
   onRegenerate,
   disabled,
@@ -42,6 +72,9 @@ export function TrainingPlanPanel({
   intensityLabels,
   movementPatternLabels,
 }: TrainingPlanPanelProps) {
+  const activePreviewWeekday = selectedTemplateWeekday ?? templatePreview?.weekday ?? null;
+  const isUserOverride = activeTrainingSource === 'user_override';
+
   return (
     <DashboardCard>
       <div className="flex items-center justify-between gap-4">
@@ -54,13 +87,65 @@ export function TrainingPlanPanel({
             {isCardioPlan ? '今日减脂有氧计划' : trainingPlan?.title ?? '先选择今天想练的部位'}
           </h2>
         </div>
-        <PanelTag tone="deep">{isCardioPlan ? '爬坡有氧' : '进行中'}</PanelTag>
+        <PanelTag tone="deep">
+          {isUserOverride ? '个人模板生效中' : isCardioPlan ? '有氧计划' : '系统方案'}
+        </PanelTag>
+      </div>
+
+      <div className="mt-6 rounded-[28px] bg-[#eef6fb] px-5 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[#17324d]">我的训练模板</p>
+            <p className="mt-1 text-sm text-[#5f768d]">
+              {templatePreview
+                ? `当前预览：${weekdayLabels[templatePreview.weekday]} · ${templatePreview.day.title}`
+                : '启用个人周模板后，这里可以预览并一键替换今天的训练方案。'}
+            </p>
+          </div>
+          <Link
+            href="/account/training-templates"
+            className="rounded-full border border-[#cfe0ea] bg-white px-4 py-2 text-sm font-semibold text-[#17324d]"
+          >
+            管理我的模板
+          </Link>
+        </div>
+
+        {templatePreview ? (
+          <>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(Object.keys(weekdayLabels) as TrainingTemplateWeekday[]).map((weekday) => {
+                const active = activePreviewWeekday === weekday;
+                return (
+                  <button
+                    key={weekday}
+                    type="button"
+                    onClick={() => onSelectTemplateWeekday(weekday)}
+                    disabled={disabled}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                      active ? 'bg-[#17324d] text-white' : 'bg-white text-[#17324d]'
+                    }`}
+                  >
+                    {weekdayLabels[weekday]}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 rounded-[24px] bg-white px-4 py-4 text-sm text-[#5f768d]">
+              <p className="font-semibold text-[#17324d]">{templatePreview.day.title}</p>
+              <p className="mt-1">
+                {templatePreview.day.dayType === 'rest'
+                  ? '这一天是休息/恢复安排，应用后今天页会按你的个人节奏展示。'
+                  : `预计 ${templatePreview.day.durationMinutes ?? '--'} 分钟，共 ${templatePreview.day.items.length} 个动作。`}
+              </p>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {isCardioPlan ? (
         <>
           <p className="mt-4 text-lg leading-8 text-[#5f768d]">
-            {trainingPlan?.title ?? '爬坡有氧'}，把正式有氧主段控制在 25-45 分钟，优先稳定执行和恢复。
+            {trainingPlan?.title ?? '减脂有氧'}，把正式有氧主段控制在 25-45 分钟，优先稳定执行和恢复。
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <MetricPill label="计划类型" value="爬坡有氧" />
@@ -142,8 +227,7 @@ export function TrainingPlanPanel({
                   <div>
                     <p className="text-lg font-semibold text-[#17324d]">{item.name}</p>
                     <p className="text-sm text-[#677f95]">
-                      {item.sets} 组 · {item.reps} · {movementPatternLabels[item.movementPattern]} · 休息{' '}
-                      {item.restSeconds} 秒
+                      {item.sets} 组 · {item.reps} · {movementPatternLabels[item.movementPattern]} · 休息 {item.restSeconds} 秒
                     </p>
                     <p className="mt-1 text-xs text-[#6f8799]">{item.restHint}</p>
                   </div>
@@ -156,6 +240,26 @@ export function TrainingPlanPanel({
       )}
 
       <div className="mt-6 flex flex-wrap gap-3">
+        {templatePreview ? (
+          <button
+            type="button"
+            onClick={onApplyTemplateToToday}
+            disabled={disabled}
+            className="rounded-full bg-[#17324d] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            应用个人模板到今天
+          </button>
+        ) : null}
+        {isUserOverride ? (
+          <button
+            type="button"
+            onClick={onRestoreSystemTraining}
+            disabled={disabled}
+            className="rounded-full border border-[#d3e3ee] bg-white px-5 py-3 text-sm font-semibold text-[#17324d] disabled:opacity-60"
+          >
+            恢复系统方案
+          </button>
+        ) : null}
         {isStrengthTarget ? (
           <button
             type="button"
@@ -181,6 +285,12 @@ export function TrainingPlanPanel({
           去每日打卡
         </Link>
       </div>
+
+      {isUserOverride && systemTrainingPlan ? (
+        <p className="mt-4 rounded-[20px] bg-[#f7fafc] px-4 py-3 text-sm text-[#5f768d]">
+          系统原方案仍然保留：{systemTrainingPlan.title}
+        </p>
+      ) : null}
       {focusMessage ? (
         <p className="mt-4 rounded-[20px] bg-[#ebf8ef] px-4 py-3 text-sm text-[#1d6a49]">{focusMessage}</p>
       ) : null}

@@ -31,6 +31,11 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   foodLibraryItem: any;
   trainingPlan: any;
   trainingPlanItem: any;
+  userTrainingTemplate: any;
+  userTrainingTemplateDay: any;
+  userTrainingTemplateItem: any;
+  dailyTrainingOverride: any;
+  dailyTrainingOverrideItem: any;
   checkIn: any;
   weeklyReview: any;
   weeklyReviewActionItem: any;
@@ -117,6 +122,11 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     this.foodLibraryItem = source.foodLibraryItem;
     this.trainingPlan = source.trainingPlan;
     this.trainingPlanItem = source.trainingPlanItem;
+    this.userTrainingTemplate = source.userTrainingTemplate;
+    this.userTrainingTemplateDay = source.userTrainingTemplateDay;
+    this.userTrainingTemplateItem = source.userTrainingTemplateItem;
+    this.dailyTrainingOverride = source.dailyTrainingOverride;
+    this.dailyTrainingOverrideItem = source.dailyTrainingOverrideItem;
     this.checkIn = source.checkIn;
     this.weeklyReview = source.weeklyReview;
     this.weeklyReviewActionItem = source.weeklyReviewActionItem;

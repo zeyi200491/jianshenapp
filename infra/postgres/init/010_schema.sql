@@ -108,6 +108,96 @@ CREATE TABLE IF NOT EXISTS training_plan_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS user_training_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(128) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  notes TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_training_templates_user_status_enabled
+  ON user_training_templates(user_id, status, is_enabled);
+
+CREATE INDEX IF NOT EXISTS idx_user_training_templates_user_default
+  ON user_training_templates(user_id, is_default);
+
+CREATE TABLE IF NOT EXISTS user_training_template_days (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id UUID NOT NULL REFERENCES user_training_templates(id) ON DELETE CASCADE,
+  weekday VARCHAR(16) NOT NULL,
+  day_type VARCHAR(16) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  day_index INT NOT NULL,
+  split_type VARCHAR(32),
+  title VARCHAR(128) NOT NULL,
+  duration_minutes INT,
+  intensity_level VARCHAR(16),
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (template_id, weekday)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_training_template_days_template_sort
+  ON user_training_template_days(template_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS user_training_template_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_day_id UUID NOT NULL REFERENCES user_training_template_days(id) ON DELETE CASCADE,
+  exercise_code VARCHAR(64) NOT NULL,
+  exercise_name VARCHAR(128) NOT NULL,
+  sets INT NOT NULL,
+  reps VARCHAR(32) NOT NULL,
+  rest_seconds INT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  display_order INT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS daily_training_overrides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  daily_plan_id UUID NOT NULL REFERENCES daily_plans(id) ON DELETE CASCADE,
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  source_weekday VARCHAR(16),
+  source_template_id UUID REFERENCES user_training_templates(id) ON DELETE SET NULL,
+  source_template_day_id UUID REFERENCES user_training_template_days(id) ON DELETE SET NULL,
+  split_type VARCHAR(32) NOT NULL,
+  title VARCHAR(128) NOT NULL,
+  duration_minutes INT NOT NULL,
+  intensity_level VARCHAR(16) NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_training_overrides_user_plan_status
+  ON daily_training_overrides(user_id, daily_plan_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_daily_training_overrides_plan_status
+  ON daily_training_overrides(daily_plan_id, status);
+
+CREATE TABLE IF NOT EXISTS daily_training_override_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  daily_training_override_id UUID NOT NULL REFERENCES daily_training_overrides(id) ON DELETE CASCADE,
+  source_template_item_id UUID REFERENCES user_training_template_items(id) ON DELETE SET NULL,
+  exercise_code VARCHAR(64) NOT NULL,
+  exercise_name VARCHAR(128) NOT NULL,
+  sets INT NOT NULL,
+  reps VARCHAR(32) NOT NULL,
+  rest_seconds INT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  display_order INT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS check_ins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

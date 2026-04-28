@@ -38,6 +38,7 @@ function main() {
     'apps/web/app/login/page.tsx',
     'apps/web/app/onboarding/page.tsx',
     'apps/web/app/today/page.tsx',
+    'apps/web/app/account/training-templates/page.tsx',
     'apps/web/app/check-in/page.tsx',
     'apps/web/app/review/page.tsx',
     'apps/web/app/assistant/page.tsx',
@@ -49,6 +50,8 @@ function main() {
     'apps/web/components/web/dashboard-shell.tsx',
     'apps/web/components/web/live-status-card.tsx',
     'apps/web/components/web/today/training-plan-panel.tsx',
+    'apps/web/components/web/training-templates/training-template-list.tsx',
+    'apps/web/components/web/training-templates/training-template-editor.tsx',
     'apps/web/components/web/today/profile-settings-form.tsx',
     'apps/web/components/web/today/today-overview-section.tsx',
     'apps/web/components/web/today/today-coach-section.tsx',
@@ -268,10 +271,36 @@ function main() {
   expectIncludes(todayCoachSectionSource, 'LiveStatusCard', 'Today coach section should announce AI refresh errors through the shared live-status card');
   expectIncludes(todayTrainingPanelSource, '今日减脂有氧计划', 'Training panel component should expose a dedicated cardio training title');
   expectIncludes(todayTrainingPanelSource, '爬坡有氧', 'Training panel component should describe treadmill incline cardio in the training panel');
+  expectIncludes(todayTrainingPanelSource, '应用个人模板到今天', 'Training panel component should let users apply their own weekly template to today');
+  expectIncludes(todayTrainingPanelSource, '恢复系统方案', 'Training panel component should let users restore the system training plan');
+  expectIncludes(todayTrainingPanelSource, '/account/training-templates', 'Training panel component should link to training-template management');
   expectIncludes(todayProfileFormSource, '饮食偏好', 'Profile settings form component should expose diet preference summary');
   expectIncludes(todayProfileFormSource, '饮食限制', 'Profile settings form component should expose diet restriction summary');
   expectIncludes(todayProfileFormSource, 'name="heightCm"', 'Profile settings form component should give profile form fields stable names');
   expectIncludes(todayProfileFormSource, 'inputMode="decimal"', 'Profile settings form component should hint decimal keyboards for weight-like fields');
+
+  const trainingTemplatePageSource = readFileSync(
+    resolve(rootDirectory, 'apps/web/app/account/training-templates/page.tsx'),
+    'utf8',
+  );
+  const trainingTemplateListSource = readFileSync(
+    resolve(rootDirectory, 'apps/web/components/web/training-templates/training-template-list.tsx'),
+    'utf8',
+  );
+  const trainingTemplateEditorSource = readFileSync(
+    resolve(rootDirectory, 'apps/web/components/web/training-templates/training-template-editor.tsx'),
+    'utf8',
+  );
+  expectIncludes(trainingTemplatePageSource, '个人训练模板', 'Training template page should expose the template management title');
+  expectIncludes(trainingTemplatePageSource, 'fetchTrainingTemplates', 'Training template page should load template lists from the API');
+  expectIncludes(trainingTemplatePageSource, 'createTrainingTemplate', 'Training template page should create personal templates');
+  expectIncludes(trainingTemplatePageSource, 'updateTrainingTemplate', 'Training template page should update personal templates');
+  expectIncludes(trainingTemplatePageSource, 'enableTrainingTemplate', 'Training template page should enable a template for today');
+  expectIncludes(trainingTemplatePageSource, 'setDefaultTrainingTemplate', 'Training template page should support a long-term default template');
+  expectIncludes(trainingTemplateListSource, '我的模板', 'Training template list should expose the template list title');
+  expectIncludes(trainingTemplateListSource, 'today 默认来源', 'Training template list should expose the enable-for-today action');
+  expectIncludes(trainingTemplateEditorSource, '周模板编辑器', 'Training template editor should expose the weekly editor title');
+  expectIncludes(trainingTemplateEditorSource, '保存模板', 'Training template editor should expose a save action');
 
   const statusSource = readFileSync(resolve(rootDirectory, 'apps/web/app/status/page.tsx'), 'utf8');
   const statusMealPlanSource = readFileSync(

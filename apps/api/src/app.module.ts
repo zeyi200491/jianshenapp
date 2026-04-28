@@ -17,7 +17,9 @@ import { PlansModule } from './modules/plans/plans.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { TodayModule } from './modules/today/today.module';
+import { TrainingOverridesModule } from './modules/training-overrides/training-overrides.module';
 import { TrainingPlansModule } from './modules/training-plans/training-plans.module';
+import { TrainingTemplatesModule } from './modules/training-templates/training-templates.module';
 import { UsersModule } from './modules/users/users.module';
 import { WeeklyReviewsModule } from './modules/weekly-reviews/weekly-reviews.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -45,6 +47,8 @@ function resolveEnvFilePaths() {
     UsersModule,
     ProfilesModule,
     PlansModule,
+    TrainingTemplatesModule,
+    TrainingOverridesModule,
     DietPlansModule,
     MealIntakesModule,
     TrainingPlansModule,

@@ -1,4 +1,9 @@
-import { calculateNutritionTargets, generateWeeklyDietPlan, getDisplayDietSceneLabel, resolveTrainingItemMetadata } from '@campusfit/rule-engine';
+import {
+  calculateNutritionTargets,
+  generateWeeklyDietPlan,
+  getDisplayDietSceneLabel,
+  resolveTrainingItemMetadata,
+} from '@campusfit/rule-engine';
 import { Injectable, Optional } from '@nestjs/common';
 import { parseDateOnly, toDateOnlyString } from '../../common/utils/date.util';
 import { serializeValue } from '../../common/utils/serialize.util';
@@ -41,6 +46,9 @@ function mapTrainingPlan(plan: any) {
         name: item.exerciseName,
         sets: item.sets,
         reps: item.reps,
+        repText: item.repText ?? item.reps,
+        sourceType: item.sourceType ?? 'standard',
+        rawInput: item.rawInput ?? null,
         restSeconds: metadata.restSeconds,
         movementPattern: metadata.movementPattern,
         restRuleSource: metadata.restRuleSource,

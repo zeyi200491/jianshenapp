@@ -9,20 +9,20 @@ describe('TrainingOverridesService', () => {
       userId: 'user-1',
       trainingPlan: {
         id: 'system-plan-1',
-        title: 'Push Day',
+        title: '推训练日',
         splitType: 'push_pull_legs',
         durationMinutes: 55,
         intensityLevel: 'medium',
-        notes: 'System plan',
+        notes: '系统方案',
         items: [
           {
             id: 'system-item-1',
             exerciseCode: 'bench_press',
-            exerciseName: 'Bench Press',
+            exerciseName: '杠铃卧推',
             sets: 4,
             reps: '8-10',
             restSeconds: 120,
-            notes: 'Main lift',
+            notes: '主项动作',
           },
         ],
       },
@@ -37,20 +37,23 @@ describe('TrainingOverridesService', () => {
           id: 'day-1',
           weekday: 'thursday',
           dayType: 'training',
-          title: 'Travel Full Body',
+          title: '出差全身',
           splitType: 'travel_full_body',
           durationMinutes: 35,
           intensityLevel: 'medium',
-          notes: 'Hotel gym version',
+          notes: '酒店健身房版本',
           items: [
             {
               id: 'template-item-1',
-              exerciseCode: 'goblet_squat',
-              exerciseName: 'Goblet Squat',
+              exerciseCode: 'free-text/dumbbell-fly',
+              exerciseName: '哑铃飞鸟',
               sets: 3,
-              reps: '12',
+              reps: '8-10',
+              repText: '8+10+15',
+              sourceType: 'free_text',
+              rawInput: '哑铃飞鸟 8+10+15×3（10kg+7.5kg+5kg）',
               restSeconds: 75,
-              notes: 'Use dumbbells first',
+              notes: '先做轻重量递减组',
             },
           ],
         },
@@ -73,20 +76,23 @@ describe('TrainingOverridesService', () => {
     repository.findTemplateByIdAndUser.mockResolvedValue(createTemplate());
     repository.applyOverride.mockResolvedValue({
       id: 'override-1',
-      title: 'Travel Full Body',
+      title: '出差全身',
       splitType: 'travel_full_body',
       durationMinutes: 35,
       intensityLevel: 'medium',
-      notes: 'Hotel gym version',
+      notes: '酒店健身房版本',
       items: [
         {
           id: 'override-item-1',
-          exerciseCode: 'goblet_squat',
-          exerciseName: 'Goblet Squat',
+          exerciseCode: 'free-text/dumbbell-fly',
+          exerciseName: '哑铃飞鸟',
           sets: 3,
-          reps: '12',
+          reps: '8-10',
+          repText: '8+10+15',
+          sourceType: 'free_text',
+          rawInput: '哑铃飞鸟 8+10+15×3（10kg+7.5kg+5kg）',
           restSeconds: 75,
-          notes: 'Use dumbbells first',
+          notes: '先做轻重量递减组',
         },
       ],
     });
@@ -102,10 +108,23 @@ describe('TrainingOverridesService', () => {
         userId: 'user-1',
         dailyPlanId: 'daily-plan-1',
         sourceWeekday: 'thursday',
+        items: [
+          expect.objectContaining({
+            sourceTemplateItemId: 'template-item-1',
+            repText: '8+10+15',
+            sourceType: 'free_text',
+            rawInput: '哑铃飞鸟 8+10+15×3（10kg+7.5kg+5kg）',
+          }),
+        ],
       }),
     );
     expect(result.activeTrainingSource).toBe('user_override');
-    expect(result.activeTrainingPlan.title).toBe('Travel Full Body');
+    expect(result.activeTrainingPlan.title).toBe('出差全身');
+    expect(result.activeTrainingPlan.items[0]).toMatchObject({
+      repText: '8+10+15',
+      sourceType: 'free_text',
+      rawInput: '哑铃飞鸟 8+10+15×3（10kg+7.5kg+5kg）',
+    });
   });
 
   it('removes the active override and falls back to system plan', async () => {
@@ -118,7 +137,7 @@ describe('TrainingOverridesService', () => {
 
     expect(repository.removeActiveOverride).toHaveBeenCalledWith('daily-plan-1', 'user-1');
     expect(result.activeTrainingSource).toBe('system');
-    expect(result.activeTrainingPlan.title).toBe('Push Day');
+    expect(result.activeTrainingPlan.title).toBe('推训练日');
   });
 
   it('rejects apply when the requested weekday does not exist in template', async () => {

@@ -44,6 +44,24 @@ export class CreateTrainingTemplateItemDto {
   @MaxLength(32)
   reps!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  repText?: string;
+
+  @ApiPropertyOptional({ enum: ['standard', 'free_text'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['standard', 'free_text'])
+  sourceType?: 'standard' | 'free_text';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  rawInput?: string | null;
+
   @ApiProperty()
   @Type(() => Number)
   @IsInt()

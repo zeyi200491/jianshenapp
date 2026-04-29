@@ -9,15 +9,29 @@ import type {
 } from '@/lib/api';
 import { DashboardCard, PanelTag } from '@/components/web/dashboard-shell';
 
-export type TrainingTemplateDraft = TrainingTemplatePayload & {
+type ExtendedTrainingTemplateItemPayload = TrainingTemplateItemPayload & {
+  repText?: string;
+  sourceType?: string;
+  rawInput?: string | null;
+};
+
+type ExtendedTrainingTemplateDayPayload = Omit<TrainingTemplateDayPayload, 'items'> & {
+  items: ExtendedTrainingTemplateItemPayload[];
+};
+
+export type TrainingTemplateDraft = Omit<TrainingTemplatePayload, 'days'> & {
   id?: string;
+  days: ExtendedTrainingTemplateDayPayload[];
 };
 
 type TrainingTemplateEditorProps = {
   draft: TrainingTemplateDraft | null;
   onChange: (draft: TrainingTemplateDraft) => void;
   onSave: () => void;
+  onOpenImport: () => void;
   disabled?: boolean;
+  importDisabled?: boolean;
+  importHint?: string;
 };
 
 const weekdayLabels: Record<TrainingTemplateWeekday, string> = {
@@ -38,10 +52,24 @@ const intensityLabels: Record<IntensityLevel, string> = {
 
 const intensityOptions: IntensityLevel[] = ['low', 'medium', 'high'];
 
+function createDefaultItem(): ExtendedTrainingTemplateItemPayload {
+  return {
+    exerciseCode: '',
+    exerciseName: '',
+    sets: 3,
+    reps: '10-12',
+    repText: '10-12',
+    sourceType: 'standard',
+    rawInput: null,
+    restSeconds: 90,
+    notes: '',
+  };
+}
+
 function updateDay(
   draft: TrainingTemplateDraft,
   index: number,
-  updater: (day: TrainingTemplateDayPayload) => TrainingTemplateDayPayload,
+  updater: (day: ExtendedTrainingTemplateDayPayload) => ExtendedTrainingTemplateDayPayload,
 ) {
   const days = draft.days.map((day, currentIndex) => (currentIndex === index ? updater(day) : day));
   return { ...draft, days };
@@ -51,7 +79,7 @@ function updateItem(
   draft: TrainingTemplateDraft,
   dayIndex: number,
   itemIndex: number,
-  updater: (item: TrainingTemplateItemPayload) => TrainingTemplateItemPayload,
+  updater: (item: ExtendedTrainingTemplateItemPayload) => ExtendedTrainingTemplateItemPayload,
 ) {
   return updateDay(draft, dayIndex, (day) => ({
     ...day,
@@ -63,7 +91,10 @@ export function TrainingTemplateEditor({
   draft,
   onChange,
   onSave,
+  onOpenImport,
   disabled = false,
+  importDisabled = false,
+  importHint = '',
 }: TrainingTemplateEditorProps) {
   if (!draft) {
     return (
@@ -83,15 +114,26 @@ export function TrainingTemplateEditor({
           <p className="text-lg font-semibold text-[#17324d]">周模板编辑器</p>
           <p className="mt-1 text-sm text-[#5f768d]">训练日维护动作清单，休息日保留恢复说明即可。</p>
         </div>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={disabled}
-          className="rounded-full bg-[#0f7ea5] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          保存模板
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onOpenImport}
+            disabled={disabled || importDisabled}
+            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#17324d] disabled:opacity-60"
+          >
+            文字导入
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={disabled}
+            className="rounded-full bg-[#0f7ea5] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            保存模板
+          </button>
+        </div>
       </div>
+      {importHint ? <p className="mt-3 text-xs leading-6 text-[#5f768d]">{importHint}</p> : null}
 
       <div className="mt-6 grid gap-4">
         <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
@@ -103,7 +145,9 @@ export function TrainingTemplateEditor({
           />
           <select
             value={draft.status}
-            onChange={(event) => onChange({ ...draft, status: event.target.value as TrainingTemplateDraft['status'] })}
+            onChange={(event) =>
+              onChange({ ...draft, status: event.target.value as TrainingTemplateDraft['status'] })
+            }
             className="rounded-[20px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none"
           >
             <option value="active">启用可用</option>
@@ -145,16 +189,7 @@ export function TrainingTemplateEditor({
                           ? []
                           : current.items.length > 0
                             ? current.items
-                            : [
-                                {
-                                  exerciseCode: '',
-                                  exerciseName: '',
-                                  sets: 3,
-                                  reps: '10-12',
-                                  restSeconds: 90,
-                                  notes: '',
-                                },
-                              ],
+                            : [createDefaultItem()],
                     })),
                   )
                 }
@@ -165,7 +200,9 @@ export function TrainingTemplateEditor({
               </select>
               <input
                 value={day.title}
-                onChange={(event) => onChange(updateDay(draft, dayIndex, (current) => ({ ...current, title: event.target.value })))}
+                onChange={(event) =>
+                  onChange(updateDay(draft, dayIndex, (current) => ({ ...current, title: event.target.value })))
+                }
                 placeholder="当天标题"
                 className="rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none"
               />
@@ -197,7 +234,9 @@ export function TrainingTemplateEditor({
             <div className="mt-3 grid gap-3 md:grid-cols-[1fr_0.8fr]">
               <textarea
                 value={day.notes ?? ''}
-                onChange={(event) => onChange(updateDay(draft, dayIndex, (current) => ({ ...current, notes: event.target.value })))}
+                onChange={(event) =>
+                  onChange(updateDay(draft, dayIndex, (current) => ({ ...current, notes: event.target.value })))
+                }
                 placeholder="当天备注"
                 className="min-h-[84px] rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none"
               />
@@ -241,7 +280,7 @@ export function TrainingTemplateEditor({
                         onChange={(event) =>
                           onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, exerciseCode: event.target.value })))
                         }
-                        placeholder="动作 code"
+                        placeholder="动作编码"
                         className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
                       />
                       <input
@@ -255,7 +294,14 @@ export function TrainingTemplateEditor({
                       <input
                         value={item.reps}
                         onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, reps: event.target.value })))
+                          onChange(
+                            updateItem(draft, dayIndex, itemIndex, (current) => ({
+                              ...current,
+                              reps: event.target.value,
+                              repText: event.target.value,
+                              sourceType: current.sourceType ?? 'standard',
+                            })),
+                          )
                         }
                         placeholder="次数"
                         className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
@@ -274,6 +320,7 @@ export function TrainingTemplateEditor({
                         className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
                       />
                     </div>
+
                     <div className="mt-3 flex flex-wrap items-center gap-3">
                       <input
                         value={item.notes ?? ''}
@@ -283,6 +330,11 @@ export function TrainingTemplateEditor({
                         placeholder="动作备注"
                         className="min-w-[240px] flex-1 rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
                       />
+                      {item.sourceType === 'free_text' ? (
+                        <span className="rounded-full bg-[#eef6fb] px-3 py-2 text-xs font-semibold text-[#0f7ea5]">
+                          文本导入
+                        </span>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() =>
@@ -298,6 +350,12 @@ export function TrainingTemplateEditor({
                         删除动作
                       </button>
                     </div>
+
+                    {item.rawInput ? (
+                      <p className="mt-3 rounded-[16px] bg-[#f8fbfe] px-3 py-2 text-xs leading-6 text-[#5f768d]">
+                        导入原文：{item.rawInput}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
 
@@ -307,17 +365,7 @@ export function TrainingTemplateEditor({
                     onChange(
                       updateDay(draft, dayIndex, (current) => ({
                         ...current,
-                        items: [
-                          ...current.items,
-                          {
-                            exerciseCode: '',
-                            exerciseName: '',
-                            sets: 3,
-                            reps: '10-12',
-                            restSeconds: 90,
-                            notes: '',
-                          },
-                        ],
+                        items: [...current.items, createDefaultItem()],
                       })),
                     )
                   }

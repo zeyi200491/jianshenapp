@@ -18,6 +18,11 @@ type FocusOption = {
 };
 
 type TodayTrainingPlan = TodayPayload['trainingPlan'];
+type TodayTrainingItem = NonNullable<TodayTrainingPlan>['items'][number] & {
+  repText?: string;
+  sourceType?: string;
+  rawInput?: string | null;
+};
 
 const weekdayLabels: Record<TrainingTemplateWeekday, string> = {
   monday: '周一',
@@ -134,7 +139,7 @@ export function TrainingPlanPanel({
               <p className="font-semibold text-[#17324d]">{templatePreview.day.title}</p>
               <p className="mt-1">
                 {templatePreview.day.dayType === 'rest'
-                  ? '这一天是休息/恢复安排，应用后今天页会按你的个人节奏展示。'
+                  ? '这一天是休息/恢复安排，应用后今日页会按你的个人节奏展示。'
                   : `预计 ${templatePreview.day.durationMinutes ?? '--'} 分钟，共 ${templatePreview.day.items.length} 个动作。`}
               </p>
             </div>
@@ -156,7 +161,7 @@ export function TrainingPlanPanel({
             />
           </div>
           <div className="mt-6 rounded-[28px] bg-[#eef6fb] px-5 py-5 text-sm leading-7 text-[#4d647a]">
-            {trainingPlan?.notes}
+            {trainingPlan?.notes ?? '优先选择跑步机爬坡、椭圆机或自行车等可稳定维持心率的项目。'}
           </div>
           <div className="mt-6 space-y-3">
             {(trainingPlan?.items ?? []).map((item, index) => (
@@ -213,28 +218,34 @@ export function TrainingPlanPanel({
             })}
           </div>
           <div className="mt-6 space-y-3">
-            {(trainingPlan?.items ?? []).slice(0, 4).map((item, index) => (
-              <div
-                key={item.id}
-                className={`flex items-center justify-between rounded-[28px] px-5 py-4 ${
-                  index === 0 ? 'bg-[#eef5fb]' : 'bg-[#f8fbfe]'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="grid h-14 w-14 place-items-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#17324d,#05080d)] text-white">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <p className="text-lg font-semibold text-[#17324d]">{item.name}</p>
-                    <p className="text-sm text-[#677f95]">
-                      {item.sets} 组 · {item.reps} · {movementPatternLabels[item.movementPattern]} · 休息 {item.restSeconds} 秒
-                    </p>
-                    <p className="mt-1 text-xs text-[#6f8799]">{item.restHint}</p>
+            {(trainingPlan?.items ?? []).slice(0, 4).map((item, index) => {
+              const enrichedItem = item as TodayTrainingItem;
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-center justify-between rounded-[28px] px-5 py-4 ${
+                    index === 0 ? 'bg-[#eef5fb]' : 'bg-[#f8fbfe]'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="grid h-14 w-14 place-items-center rounded-full bg-[radial-gradient(circle_at_30%_30%,#17324d,#05080d)] text-white">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-lg font-semibold text-[#17324d]">{item.name}</p>
+                      <p className="text-sm text-[#677f95]">
+                        {item.sets} 组 · {enrichedItem.repText ?? item.reps} · {movementPatternLabels[item.movementPattern]} · 休息 {item.restSeconds} 秒
+                      </p>
+                      <p className="mt-1 text-xs text-[#6f8799]">{item.restHint}</p>
+                      {enrichedItem.rawInput ? (
+                        <p className="mt-1 text-xs text-[#6f8799]">导入原文：{enrichedItem.rawInput}</p>
+                      ) : null}
+                    </div>
                   </div>
+                  <PanelTag>{index === 0 ? '主项' : '待完成'}</PanelTag>
                 </div>
-                <PanelTag>{index === 0 ? '主项' : '待完成'}</PanelTag>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

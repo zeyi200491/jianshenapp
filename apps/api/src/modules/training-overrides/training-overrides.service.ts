@@ -22,6 +22,9 @@ function mapTrainingLike(plan: any) {
       exerciseName: item.exerciseName,
       sets: item.sets,
       reps: item.reps,
+      repText: item.repText ?? item.reps,
+      sourceType: item.sourceType ?? 'standard',
+      rawInput: item.rawInput ?? null,
       restSeconds: item.restSeconds,
       notes: item.notes,
     })),
@@ -35,17 +38,17 @@ export class TrainingOverridesService {
   async apply(userId: string, dailyPlanId: string, dto: ApplyTrainingOverrideDto) {
     const dailyPlan = await this.repository.findDailyPlanByIdAndUser(dailyPlanId, userId);
     if (!dailyPlan) {
-      throw new AppException('NOT_FOUND', '今日计划不存在', 404);
+      throw new AppException('NOT_FOUND', '今日计划不存在。', 404);
     }
 
     const template = await this.repository.findTemplateByIdAndUser(dto.templateId, userId);
     if (!template) {
-      throw new AppException('NOT_FOUND', '训练模板不存在', 404);
+      throw new AppException('NOT_FOUND', '训练模板不存在。', 404);
     }
 
     const templateDay = template.days.find((item: { weekday: string }) => item.weekday === dto.weekday);
     if (!templateDay) {
-      throw new AppException('VALIDATION_ERROR', '模板中不存在该星期配置', 400);
+      throw new AppException('VALIDATION_ERROR', '模板中不存在该星期配置。', 400);
     }
 
     const activeOverride = await this.repository.applyOverride({
@@ -65,6 +68,9 @@ export class TrainingOverridesService {
         exerciseName: item.exerciseName,
         sets: item.sets,
         reps: item.reps,
+        repText: item.repText ?? item.reps,
+        sourceType: item.sourceType ?? 'standard',
+        rawInput: item.rawInput ?? null,
         restSeconds: item.restSeconds,
         notes: item.notes ?? '',
       })),
@@ -81,7 +87,7 @@ export class TrainingOverridesService {
   async remove(userId: string, dailyPlanId: string) {
     const dailyPlan = await this.repository.findDailyPlanByIdAndUser(dailyPlanId, userId);
     if (!dailyPlan) {
-      throw new AppException('NOT_FOUND', '今日计划不存在', 404);
+      throw new AppException('NOT_FOUND', '今日计划不存在。', 404);
     }
 
     await this.repository.removeActiveOverride(dailyPlanId, userId);

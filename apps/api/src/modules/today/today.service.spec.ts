@@ -120,7 +120,7 @@ describe('TodayService', () => {
       mealIntakeOverrides: [],
       trainingPlan: {
         id: 'training-plan-1',
-        title: 'Push 日',
+        title: '推训练日',
         splitType: 'push_pull_legs',
         durationMinutes: 55,
         intensityLevel: 'medium',
@@ -151,10 +151,13 @@ describe('TodayService', () => {
         items: [
           {
             id: 'training-override-item-1',
-            exerciseCode: 'dumbbell-goblet-squat',
+            exerciseCode: 'free-text/dumbbell-goblet-squat',
             exerciseName: '哑铃高脚杯深蹲',
             sets: 3,
             reps: '12',
+            repText: '12+12+12',
+            sourceType: 'free_text',
+            rawInput: '哑铃高脚杯深蹲 12+12+12×3（20kg）',
             restSeconds: 75,
             notes: '优先使用酒店器械',
           },
@@ -171,10 +174,15 @@ describe('TodayService', () => {
     const result = await service.getToday('user-1', '2026-04-16');
 
     expect(result.activeTrainingSource).toBe('user_override');
-    expect(result.systemTrainingPlan.title).toBe('Push 日');
+    expect(result.systemTrainingPlan.title).toBe('推训练日');
     expect(result.activeTrainingPlan.title).toBe('出差酒店替代训练');
     expect(result.activeTrainingPlan.splitType).toBe('travel_full_body');
-    expect(result.activeTrainingPlan.items[0].name).toBe('哑铃高脚杯深蹲');
-    expect(result.activeTrainingPlan.items[0].restSeconds).toBe(75);
+    expect(result.activeTrainingPlan.items[0]).toMatchObject({
+      name: '哑铃高脚杯深蹲',
+      restSeconds: 75,
+      repText: '12+12+12',
+      sourceType: 'free_text',
+      rawInput: '哑铃高脚杯深蹲 12+12+12×3（20kg）',
+    });
   });
 });

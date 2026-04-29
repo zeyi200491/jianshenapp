@@ -222,6 +222,9 @@ export type TodayTrainingPlan = {
     name: string;
     sets: number;
     reps: string;
+    repText?: string;
+    sourceType?: 'standard' | 'free_text';
+    rawInput?: string | null;
     restSeconds: number;
     movementPattern: MovementPattern;
     restRuleSource: RestRuleSource;
@@ -340,6 +343,9 @@ export type TrainingTemplateItemPayload = {
   exerciseName: string;
   sets: number;
   reps: string;
+  repText?: string;
+  sourceType?: 'standard' | 'free_text';
+  rawInput?: string | null;
   restSeconds: number;
   notes?: string;
 };
@@ -389,6 +395,40 @@ export type TrainingTemplatePreview = {
   weekday: TrainingTemplateWeekday;
   day: TrainingTemplateDetail['days'][number];
 } | null;
+
+export type TrainingTemplateImportPreview = {
+  previewToken: string;
+  summary: {
+    detectedDays: number;
+    successfulLines: number;
+    warningLines: number;
+    blockingLines: number;
+  };
+  parsedDays: Array<{
+    weekday: TrainingTemplateWeekday;
+    title: string;
+    dayType: TrainingTemplateDayType;
+    selectable: boolean;
+    warnings: string[];
+    items: Array<{
+      rawLine: string;
+      exerciseName: string;
+      matchedExerciseCode: string | null;
+      sets: number | null;
+      reps: string | null;
+      repText: string | null;
+      notes: string;
+      matchStatus: 'matched' | 'free_text' | 'warning' | 'invalid';
+    }>;
+  }>;
+  errors: Array<{
+    lineNumber: number;
+    weekday: TrainingTemplateWeekday | null;
+    rawLine: string;
+    message: string;
+    blocking: boolean;
+  }>;
+};
 
 export type Conversation = {
   id: string;
@@ -559,6 +599,35 @@ export async function previewTrainingTemplate(
   }
 
   return requestJson<TrainingTemplatePreview>(`/users/me/training-template-preview?${search.toString()}`, { method: 'GET' }, token);
+}
+
+export async function importTrainingTemplatePreview(
+  token: string,
+  payload: { templateId: string; rawText: string },
+) {
+  return requestJson<TrainingTemplateImportPreview>(
+    '/users/me/training-templates/import-preview',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function applyTrainingTemplateImport(
+  token: string,
+  templateId: string,
+  payload: { previewToken: string; selectedWeekdays: TrainingTemplateWeekday[] },
+) {
+  return requestJson<TrainingTemplateDetail>(
+    `/users/me/training-templates/${templateId}/import-apply`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
 }
 
 export async function applyTrainingOverride(

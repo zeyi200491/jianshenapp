@@ -10,14 +10,32 @@ import {
   type CreateTrainingTemplateDayDto,
   type CreateTrainingTemplateDto,
 } from './dto/create-training-template.dto';
+import type { ApplyTrainingTemplateImportDto } from './dto/apply-training-template-import.dto';
+import type { ImportTrainingTemplatePreviewDto } from './dto/import-training-template-preview.dto';
 import type { PreviewTrainingTemplateDto } from './dto/preview-training-template.dto';
-import type { UpdateTrainingTemplateDayDto, UpdateTrainingTemplateDto } from './dto/update-training-template.dto';
-import { TrainingTemplatesRepository } from './training-templates.repository';
+import type {
+  UpdateTrainingTemplateDayDto,
+  UpdateTrainingTemplateDto,
+} from './dto/update-training-template.dto';
+import {
+  parseTrainingTemplateImportText,
+  type ParsedImportDay,
+} from './training-template-import.parser';
+import { TrainingTemplateImportPreviewStore } from './training-template-import-preview.store';
+import {
+  TrainingTemplatesRepository,
+  type ImportedTemplateDayInput,
+  type PersistedTemplateDayInput,
+  type PersistedTemplateItemInput,
+} from './training-templates.repository';
 
 const WEEKDAY_ORDER = TEMPLATE_WEEKDAYS;
 const TEMPLATE_STATUS_SET = new Set<string>(TEMPLATE_STATUSES);
 const TEMPLATE_DAY_TYPE_SET = new Set<string>(TEMPLATE_DAY_TYPES);
 const TEMPLATE_INTENSITY_SET = new Set<string>(TEMPLATE_INTENSITY_LEVELS);
+const IMPORT_DEFAULT_DURATION_MINUTES = 45;
+const IMPORT_DEFAULT_INTENSITY_LEVEL = 'medium';
+const IMPORT_DEFAULT_REST_SECONDS = 90;
 
 function weekdayFromDate(date: Date) {
   const day = date.getUTCDay();
@@ -43,12 +61,15 @@ type PersistedTemplateInput = {
   isEnabled?: boolean;
   isDefault?: boolean;
   notes?: string;
-  days: CreateTrainingTemplateDayDto[];
+  days: PersistedTemplateDayInput[];
 };
 
 @Injectable()
 export class TrainingTemplatesService {
-  constructor(private readonly repository: TrainingTemplatesRepository) {}
+  constructor(
+    private readonly repository: TrainingTemplatesRepository,
+    private readonly previewStore: TrainingTemplateImportPreviewStore,
+  ) {}
 
   async list(userId: string) {
     return serializeValue(await this.repository.findManyByUserId(userId));
@@ -138,6 +159,68 @@ export class TrainingTemplatesService {
     });
   }
 
+  async importPreview(userId: string, dto: ImportTrainingTemplatePreviewDto) {
+    const template = await this.repository.findByIdAndUserId(dto.templateId, userId);
+    if (!template) {
+      throw new AppException('NOT_FOUND', '训练模板不存在。', 404);
+    }
+
+    const preview = parseTrainingTemplateImportText(dto.rawText);
+    if (preview.summary.detectedDays === 0) {
+      throw new AppException('VALIDATION_ERROR', '没有识别到任何周几，请检查输入格式。', 400);
+    }
+
+    const previewToken = this.previewStore.save(
+      template.id,
+      this.normalizeTimestamp(template.updatedAt),
+      preview,
+    );
+
+    return serializeValue({
+      previewToken,
+      ...preview,
+    });
+  }
+
+  async applyImport(userId: string, templateId: string, dto: ApplyTrainingTemplateImportDto) {
+    const template = await this.repository.findByIdAndUserId(templateId, userId);
+    if (!template) {
+      throw new AppException('NOT_FOUND', '训练模板不存在。', 404);
+    }
+
+    const preview = this.previewStore.consume(dto.previewToken);
+    if (!preview || preview.templateId !== templateId) {
+      throw new AppException('VALIDATION_ERROR', '导入预览已失效，请重新解析。', 400);
+    }
+
+    if (preview.templateUpdatedAt !== this.normalizeTimestamp(template.updatedAt)) {
+      throw new AppException('CONFLICT', '当前模板在解析后已更新，请重新解析后再确认覆盖。', 409);
+    }
+
+    const selectedWeekdays = Array.from(new Set(dto.selectedWeekdays));
+    if (selectedWeekdays.length === 0) {
+      throw new AppException('VALIDATION_ERROR', '请至少选择一个要覆盖的周几。', 400);
+    }
+
+    const parsedDayMap = new Map(preview.payload.parsedDays.map((day) => [day.weekday, day]));
+    const importedDays: ImportedTemplateDayInput[] = selectedWeekdays.map((weekday) => {
+      const parsedDay = parsedDayMap.get(weekday);
+      if (!parsedDay || !parsedDay.selectable) {
+        throw new AppException('VALIDATION_ERROR', `所选的${this.getWeekdayLabel(weekday)}当前不能覆盖，请先修正解析错误。`, 400);
+      }
+      return this.toImportedDayInput(parsedDay);
+    });
+
+    const updatedTemplate = await this.repository.replaceTemplateDaysFromImport(
+      templateId,
+      userId,
+      selectedWeekdays,
+      importedDays,
+    );
+
+    return serializeValue(updatedTemplate);
+  }
+
   private normalizeCreatePayload(dto: CreateTrainingTemplateDto): PersistedTemplateInput {
     if (!dto.days.length) {
       throw new AppException('VALIDATION_ERROR', '训练模板至少需要 1 天配置。', 400);
@@ -172,10 +255,10 @@ export class TrainingTemplatesService {
       isEnabled?: boolean;
       isDefault?: boolean;
       notes?: string;
-      days: CreateTrainingTemplateDayDto[];
+      days: PersistedTemplateDayInput[];
     },
   ) {
-    const payload: UpdateTrainingTemplateDto & { days?: CreateTrainingTemplateDayDto[] } = {
+    const payload: UpdateTrainingTemplateDto & { days?: PersistedTemplateDayInput[] } = {
       ...(dto.status !== undefined ? { status: dto.status } : {}),
       ...(dto.isEnabled !== undefined ? { isEnabled: dto.isEnabled } : {}),
       ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
@@ -209,7 +292,7 @@ export class TrainingTemplatesService {
     return payload;
   }
 
-  private normalizeDay(day: CreateTrainingTemplateDayDto | UpdateTrainingTemplateDayDto): CreateTrainingTemplateDayDto {
+  private normalizeDay(day: CreateTrainingTemplateDayDto | UpdateTrainingTemplateDayDto): PersistedTemplateDayInput {
     const title = String(day.title).trim();
     if (!title) {
       throw new AppException('VALIDATION_ERROR', '模板日标题不能为空。', 400);
@@ -223,30 +306,35 @@ export class TrainingTemplatesService {
       durationMinutes: day.durationMinutes ?? null,
       intensityLevel: day.intensityLevel ?? null,
       notes: day.notes?.trim() ?? '',
-      items: (day.items ?? []).map((item) => {
-        const exerciseCode = item.exerciseCode.trim();
-        const exerciseName = item.exerciseName.trim();
-        const reps = item.reps.trim();
+      items: (day.items ?? []).map((item) => this.normalizeItem(item)),
+    };
+  }
 
-        if (!exerciseCode) {
-          throw new AppException('VALIDATION_ERROR', '训练动作编码不能为空。', 400);
-        }
-        if (!exerciseName) {
-          throw new AppException('VALIDATION_ERROR', '训练动作名称不能为空。', 400);
-        }
-        if (!reps) {
-          throw new AppException('VALIDATION_ERROR', '动作 reps 不能为空。', 400);
-        }
+  private normalizeItem(item: PersistedTemplateItemInput): PersistedTemplateItemInput {
+    const exerciseCode = item.exerciseCode.trim();
+    const exerciseName = item.exerciseName.trim();
+    const reps = item.reps.trim();
 
-        return {
-          exerciseCode,
-          exerciseName,
-          sets: item.sets,
-          reps,
-          restSeconds: item.restSeconds,
-          notes: item.notes?.trim() ?? '',
-        };
-      }),
+    if (!exerciseCode) {
+      throw new AppException('VALIDATION_ERROR', '训练动作编码不能为空。', 400);
+    }
+    if (!exerciseName) {
+      throw new AppException('VALIDATION_ERROR', '训练动作名称不能为空。', 400);
+    }
+    if (!reps) {
+      throw new AppException('VALIDATION_ERROR', '动作 reps 不能为空。', 400);
+    }
+
+    return {
+      exerciseCode,
+      exerciseName,
+      sets: item.sets,
+      reps,
+      repText: item.repText?.trim() ? item.repText.trim() : reps,
+      sourceType: item.sourceType?.trim() === 'free_text' ? 'free_text' : 'standard',
+      rawInput: item.rawInput?.trim() ? item.rawInput.trim() : null,
+      restSeconds: item.restSeconds,
+      notes: item.notes?.trim() ?? '',
     };
   }
 
@@ -307,6 +395,50 @@ export class TrainingTemplatesService {
       current = await this.repository.setDefaultTemplate(userId, templateId);
     }
     return current;
+  }
+
+  private toImportedDayInput(day: ParsedImportDay): ImportedTemplateDayInput {
+    if (day.dayType === 'rest') {
+      return {
+        weekday: day.weekday,
+        title: day.title,
+        dayType: 'rest',
+        notes: '',
+        items: [],
+      };
+    }
+
+    return {
+      weekday: day.weekday,
+      title: day.title,
+      dayType: 'training',
+      notes: '',
+      items: day.items.map((item) => ({
+        exerciseCode: item.matchedExerciseCode ?? this.buildFreeTextExerciseCode(item.exerciseName),
+        exerciseName: item.exerciseName,
+        sets: item.sets ?? 1,
+        reps: item.reps ?? item.repText ?? '自定义',
+        repText: item.repText ?? item.reps ?? '自定义',
+        sourceType: item.matchedExerciseCode ? 'standard' : 'free_text',
+        rawInput: item.rawLine,
+        restSeconds: IMPORT_DEFAULT_REST_SECONDS,
+        notes: item.notes,
+      })),
+    };
+  }
+
+  private buildFreeTextExerciseCode(exerciseName: string) {
+    const normalized = exerciseName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+/gu, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return `free-text/${normalized || 'custom-exercise'}`;
+  }
+
+  private normalizeTimestamp(value: Date | string) {
+    return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
   }
 
   private getWeekdayLabel(weekday: string) {

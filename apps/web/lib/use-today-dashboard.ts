@@ -13,7 +13,6 @@ import {
   resetTrainingCycle,
   sendConversationMessage,
   type ActiveTrainingSource,
-  updateProfile,
   type CurrentUserPayload,
   type OnboardingPayload,
   type TodayPayload,
@@ -21,6 +20,7 @@ import {
   type TrainingTemplatePreview,
   type TrainingTemplateWeekday,
   type UpdateProfilePayload,
+  updateProfile,
 } from '@/lib/api';
 import { clearStoredSession, getStoredSession, setStoredSessionOnboardingStatus } from '@/lib/auth';
 import { describeUserFacingError } from '@/lib/user-facing-error';
@@ -91,13 +91,15 @@ export function buildConversationContext(payload: TodayPayload) {
 }
 
 export function buildAiPrompt(payload: TodayPayload, trainingFocusLabels: Record<TrainingFocus, string>) {
-  if (payload.trainingPlan?.splitType === 'cardio') {
-    return `用户今天执行的是减脂有氧计划：${payload.trainingPlan.title}。请基于当前计划输出一份可以直接照做的中文执行提示。要求：1. 先说明热身怎么做；2. 按阶段列出坡度、速度、时长与强度判断；3. 补充姿势与安全提醒；4. 给出结束后的恢复建议；5. 全程简洁分点。`;
+  const trainingPlan = payload.activeTrainingPlan ?? payload.trainingPlan;
+
+  if (trainingPlan?.splitType === 'cardio') {
+    return `用户今天执行的是减脂有氧计划：${trainingPlan.title}。请基于当前计划输出一份可以直接照做的中文执行提示。要求：1. 先说明热身怎么做；2. 按阶段列出坡度、速度、时长与强度判断；3. 补充姿势与安全提醒；4. 给出结束后的恢复建议；5. 全程简洁分点。`;
   }
 
   const focusText = payload.trainingCycle.currentFocus
     ? trainingFocusLabels[payload.trainingCycle.currentFocus]
-    : payload.trainingPlan?.title ?? '今天训练';
+    : trainingPlan?.title ?? '今天训练';
 
   return `用户今天主动选择了 ${focusText}。请基于当前训练计划，输出一份可以直接照做的 AI 训练提示。要求：1. 先给 5-8 分钟热身；2. 按顺序列出主训练动作；3. 每个动作补一句执行要点；4. 给出建议节奏、组间休息和训练后恢复建议；5. 全程使用简洁中文分点回答。`;
 }
@@ -127,7 +129,11 @@ export function useTodayDashboard({
   const [selectedTemplateWeekday, setSelectedTemplateWeekday] = useState<TrainingTemplateWeekday | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  async function loadTrainingTemplatePreview(accessToken: string, targetDate: string, weekday?: TrainingTemplateWeekday) {
+  async function loadTrainingTemplatePreview(
+    accessToken: string,
+    targetDate: string,
+    weekday?: TrainingTemplateWeekday,
+  ) {
     try {
       const preview = await previewTrainingTemplate(accessToken, { date: targetDate, weekday });
       setTemplatePreview(preview);
@@ -167,7 +173,8 @@ export function useTodayDashboard({
       setSelectedFocus(todayPayload.trainingCycle.startFocus ?? todayPayload.trainingCycle.currentFocus ?? 'push');
       await loadTrainingTemplatePreview(session.accessToken, targetDate);
 
-      if (todayPayload.trainingPlan?.id !== aiGuidePlanId) {
+      const trainingPlan = todayPayload.activeTrainingPlan ?? todayPayload.trainingPlan;
+      if (trainingPlan?.id !== aiGuidePlanId) {
         setAiGuide('');
         setAiError('');
         setAiGuidePlanId('');
@@ -195,8 +202,9 @@ export function useTodayDashboard({
   async function generateAiGuide(targetPayload?: TodayPayload | null) {
     const session = getStoredSession();
     const resolvedPayload = targetPayload ?? payload;
+    const trainingPlan = resolvedPayload?.activeTrainingPlan ?? resolvedPayload?.trainingPlan;
 
-    if (!session || !resolvedPayload?.trainingPlan) {
+    if (!session || !resolvedPayload || !trainingPlan) {
       return;
     }
 
@@ -205,7 +213,7 @@ export function useTodayDashboard({
 
     try {
       const conversation = await createConversation(session.accessToken, {
-        title: `${resolvedPayload.trainingPlan.title} AI 训练提示`,
+        title: `${trainingPlan.title} AI 训练提示`,
         context: buildConversationContext(resolvedPayload),
       });
       const result = await sendConversationMessage(session.accessToken, conversation.id, {
@@ -213,13 +221,15 @@ export function useTodayDashboard({
         context: buildConversationContext(resolvedPayload),
       });
       setAiGuide(result.assistantMessage.content);
-      setAiGuidePlanId(resolvedPayload.trainingPlan.id);
+      setAiGuidePlanId(trainingPlan.id);
     } catch (requestError) {
-      setAiError(describeUserFacingError(requestError, {
-        whatHappened: 'AI 训练提示暂时没有生成成功。',
-        nextStep: '稍后重试，或先调整计划后重新生成。',
-        dataStatus: '当前页面数据和历史计划不会丢失。',
-      }));
+      setAiError(
+        describeUserFacingError(requestError, {
+          whatHappened: 'AI 训练提示暂时没有生成成功。',
+          nextStep: '稍后重试，或先调整计划后重新生成。',
+          dataStatus: '当前页面数据和历史计划不会丢失。',
+        }),
+      );
     } finally {
       setAiLoading(false);
     }
@@ -262,11 +272,13 @@ export function useTodayDashboard({
         }
         setFocusMessage('已切换为你的个人训练模板。');
       } catch (requestError) {
-        setError(describeUserFacingError(requestError, {
-          whatHappened: '个人训练模板还没有成功应用到今天。',
-          nextStep: '稍后重试，或先检查模板当天内容是否完整。',
-          dataStatus: '系统原训练方案仍然保留，没有被删除。',
-        }));
+        setError(
+          describeUserFacingError(requestError, {
+            whatHappened: '个人训练模板还没有成功应用到今天。',
+            nextStep: '稍后重试，或先检查模板当天内容是否完整。',
+            dataStatus: '系统原训练方案仍然保留，没有被删除。',
+          }),
+        );
       }
     });
   }
@@ -292,11 +304,13 @@ export function useTodayDashboard({
         }
         setFocusMessage('已恢复系统生成的今日训练方案。');
       } catch (requestError) {
-        setError(describeUserFacingError(requestError, {
-          whatHappened: '系统训练方案还没有恢复成功。',
-          nextStep: '稍后重试，或先刷新今日页再操作一次。',
-          dataStatus: '你已有的训练记录不会因此丢失。',
-        }));
+        setError(
+          describeUserFacingError(requestError, {
+            whatHappened: '系统训练方案还没有恢复成功。',
+            nextStep: '稍后重试，或先刷新今日页再操作一次。',
+            dataStatus: '你已有的训练记录不会因此丢失。',
+          }),
+        );
       }
     });
   }
@@ -320,11 +334,13 @@ export function useTodayDashboard({
         }
         setFocusMessage('今日计划已重新生成。');
       } catch (requestError) {
-        setError(describeUserFacingError(requestError, {
-          whatHappened: '今日计划还没有重新生成成功。',
-          nextStep: '稍后重试，或先回到今日页刷新一次。',
-          dataStatus: '之前已经生成的计划仍然保留。',
-        }));
+        setError(
+          describeUserFacingError(requestError, {
+            whatHappened: '今日计划还没有重新生成成功。',
+            nextStep: '稍后重试，或先回到今日页刷新一次。',
+            dataStatus: '之前已经生成的计划仍然保留。',
+          }),
+        );
       }
     });
   }
@@ -353,11 +369,13 @@ export function useTodayDashboard({
         }
         setFocusMessage(`已按 ${trainingFocusLabels[selectedFocus]} 生成今天的 AI 训练计划。`);
       } catch (requestError) {
-        setError(describeUserFacingError(requestError, {
-          whatHappened: '今日训练计划还没有切换成功。',
-          nextStep: '检查目标设置后再试一次。',
-          dataStatus: '当前已有计划不会因为这次失败丢失。',
-        }));
+        setError(
+          describeUserFacingError(requestError, {
+            whatHappened: '今日训练计划还没有切换成功。',
+            nextStep: '检查目标设置后再试一次。',
+            dataStatus: '当前已有计划不会因为这次失败丢失。',
+          }),
+        );
       }
     });
   }
@@ -384,11 +402,13 @@ export function useTodayDashboard({
         }
         setProfileMessage('基础信息已更新，并已按新数据重新生成今日计划。');
       } catch (requestError) {
-        setError(describeUserFacingError(requestError, {
-          whatHappened: '基础资料还没有更新成功。',
-          nextStep: '检查当前输入内容后再试一次。',
-          dataStatus: '你之前保存的资料不会丢失。',
-        }));
+        setError(
+          describeUserFacingError(requestError, {
+            whatHappened: '基础资料还没有更新成功。',
+            nextStep: '检查当前输入内容后再试一次。',
+            dataStatus: '你之前保存的资料不会丢失。',
+          }),
+        );
       }
     });
   }
@@ -398,18 +418,19 @@ export function useTodayDashboard({
   }, [date]);
 
   useEffect(() => {
-    if (!payload?.trainingPlan) {
+    const trainingPlan = payload?.activeTrainingPlan ?? payload?.trainingPlan;
+    if (!trainingPlan) {
       return;
     }
-    if (payload.trainingCycle.requiresSelection) {
+    if (payload?.trainingCycle.requiresSelection) {
       return;
     }
-    if (aiLoading || aiGuidePlanId === payload.trainingPlan.id) {
+    if (aiLoading || aiGuidePlanId === trainingPlan.id) {
       return;
     }
 
     void generateAiGuide(payload);
-  }, [payload?.trainingPlan?.id, payload?.trainingCycle.requiresSelection]);
+  }, [payload?.activeTrainingPlan?.id, payload?.trainingPlan?.id, payload?.trainingCycle.requiresSelection]);
 
   return {
     payload,

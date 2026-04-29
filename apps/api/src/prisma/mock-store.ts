@@ -676,6 +676,8 @@ export class MockPrismaStore {
         this.userTrainingTemplateItems.push({
           id: randomUUID(),
           notes: '',
+          sourceType: 'standard',
+          rawInput: null,
           createdAt: now,
           ...item,
         });
@@ -869,6 +871,8 @@ export class MockPrismaStore {
         this.dailyTrainingOverrideItems.push({
           id: randomUUID(),
           notes: '',
+          sourceType: 'standard',
+          rawInput: null,
           createdAt: now,
           ...item,
         });

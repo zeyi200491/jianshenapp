@@ -279,6 +279,9 @@ model UserTrainingTemplateItem {
   exerciseName   String                      @map("exercise_name") @db.VarChar(128)
   sets           Int
   reps           String                      @db.VarChar(32)
+  repText        String?                     @map("rep_text") @db.VarChar(64)
+  sourceType     String                      @default("standard") @map("source_type") @db.VarChar(16)
+  rawInput       String?                     @map("raw_input")
   restSeconds    Int                         @map("rest_seconds")
   notes          String                      @default("")
   displayOrder   Int                         @map("display_order")
@@ -323,6 +326,9 @@ model DailyTrainingOverrideItem {
   exerciseName            String                    @map("exercise_name") @db.VarChar(128)
   sets                    Int
   reps                    String                    @db.VarChar(32)
+  repText                 String?                   @map("rep_text") @db.VarChar(64)
+  sourceType              String                    @default("standard") @map("source_type") @db.VarChar(16)
+  rawInput                String?                   @map("raw_input")
   restSeconds             Int                       @map("rest_seconds")
   notes                   String                    @default("")
   displayOrder            Int                       @map("display_order")

@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/types/request-with-user';
 import { CreateTrainingTemplateDto } from './dto/create-training-template.dto';
+import { ApplyTrainingTemplateImportDto } from './dto/apply-training-template-import.dto';
+import { ImportTrainingTemplatePreviewDto } from './dto/import-training-template-preview.dto';
 import { PreviewTrainingTemplateDto } from './dto/preview-training-template.dto';
 import { UpdateTrainingTemplateDto } from './dto/update-training-template.dto';
 import { TrainingTemplatesService } from './training-templates.service';
@@ -57,5 +59,21 @@ export class TrainingTemplatesController {
   @ApiOperation({ summary: '预览训练模板某一天内容' })
   preview(@CurrentUser() user: CurrentUserPayload, @Query() dto: PreviewTrainingTemplateDto) {
     return this.trainingTemplatesService.preview(user.userId, dto);
+  }
+
+  @Post('training-templates/import-preview')
+  @ApiOperation({ summary: '解析训练模板文本并返回预览结果' })
+  importPreview(@CurrentUser() user: CurrentUserPayload, @Body() dto: ImportTrainingTemplatePreviewDto) {
+    return this.trainingTemplatesService.importPreview(user.userId, dto);
+  }
+
+  @Post('training-templates/:id/import-apply')
+  @ApiOperation({ summary: '确认导入训练模板文本并覆盖选中的周几' })
+  applyImport(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: ApplyTrainingTemplateImportDto,
+  ) {
+    return this.trainingTemplatesService.applyImport(user.userId, id, dto);
   }
 }

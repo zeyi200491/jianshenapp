@@ -57,7 +57,7 @@ export function TrainingTemplateList({
                 <div>
                   <p className="text-base font-semibold text-[#17324d]">{template.name}</p>
                   <p className="mt-1 text-sm text-[#5f768d]">
-                    {template.days.length} 天配置 · {canActivate ? '可参与 today 页替换' : '已归档暂不启用'}
+                    {template.days.length} 天配置 · {canActivate ? '可参与 today 页替换' : '已归档，暂不启用'}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

@@ -52,6 +52,7 @@ function main() {
     'apps/web/components/web/today/training-plan-panel.tsx',
     'apps/web/components/web/training-templates/training-template-list.tsx',
     'apps/web/components/web/training-templates/training-template-editor.tsx',
+    'apps/web/components/web/training-templates/training-template-import-drawer.tsx',
     'apps/web/components/web/today/profile-settings-form.tsx',
     'apps/web/components/web/today/today-overview-section.tsx',
     'apps/web/components/web/today/today-coach-section.tsx',
@@ -291,16 +292,26 @@ function main() {
     resolve(rootDirectory, 'apps/web/components/web/training-templates/training-template-editor.tsx'),
     'utf8',
   );
+  const trainingTemplateImportDrawerSource = readFileSync(
+    resolve(rootDirectory, 'apps/web/components/web/training-templates/training-template-import-drawer.tsx'),
+    'utf8',
+  );
   expectIncludes(trainingTemplatePageSource, '个人训练模板', 'Training template page should expose the template management title');
   expectIncludes(trainingTemplatePageSource, 'fetchTrainingTemplates', 'Training template page should load template lists from the API');
   expectIncludes(trainingTemplatePageSource, 'createTrainingTemplate', 'Training template page should create personal templates');
   expectIncludes(trainingTemplatePageSource, 'updateTrainingTemplate', 'Training template page should update personal templates');
+  expectIncludes(trainingTemplatePageSource, 'importTrainingTemplatePreview', 'Training template page should preview text imports before overwrite');
+  expectIncludes(trainingTemplatePageSource, 'applyTrainingTemplateImport', 'Training template page should apply selected imported weekdays');
   expectIncludes(trainingTemplatePageSource, 'enableTrainingTemplate', 'Training template page should enable a template for today');
   expectIncludes(trainingTemplatePageSource, 'setDefaultTrainingTemplate', 'Training template page should support a long-term default template');
   expectIncludes(trainingTemplateListSource, '我的模板', 'Training template list should expose the template list title');
   expectIncludes(trainingTemplateListSource, 'today 默认来源', 'Training template list should expose the enable-for-today action');
   expectIncludes(trainingTemplateEditorSource, '周模板编辑器', 'Training template editor should expose the weekly editor title');
   expectIncludes(trainingTemplateEditorSource, '保存模板', 'Training template editor should expose a save action');
+  expectIncludes(trainingTemplateEditorSource, '文字导入', 'Training template editor should expose the text-import entry');
+  expectIncludes(trainingTemplateImportDrawerSource, '开始解析', 'Training template import drawer should expose the parse action');
+  expectIncludes(trainingTemplateImportDrawerSource, '确认覆盖', 'Training template import drawer should expose the apply action');
+  expectIncludes(trainingTemplateImportDrawerSource, '示例格式', 'Training template import drawer should expose an example format helper');
 
   const statusSource = readFileSync(resolve(rootDirectory, 'apps/web/app/status/page.tsx'), 'utf8');
   const statusMealPlanSource = readFileSync(

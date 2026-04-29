@@ -73,6 +73,9 @@ export class TrainingOverridesRepository {
       exerciseName: string;
       sets: number;
       reps: string;
+      repText?: string | null;
+      sourceType?: string;
+      rawInput?: string | null;
       restSeconds: number;
       notes: string;
     }>;
@@ -114,6 +117,9 @@ export class TrainingOverridesRepository {
             exerciseName: item.exerciseName,
             sets: item.sets,
             reps: item.reps,
+            repText: item.repText ?? item.reps,
+            sourceType: item.sourceType ?? 'standard',
+            rawInput: item.rawInput ?? null,
             restSeconds: item.restSeconds,
             notes: item.notes,
             displayOrder: index,

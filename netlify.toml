@@ -1,5 +1,5 @@
 [build]
-command = "pnpm --filter @campusfit/web build"
+command = "pnpm --filter @campusfit/web... build"
 publish = "apps/web/.next"
 
 [build.environment]

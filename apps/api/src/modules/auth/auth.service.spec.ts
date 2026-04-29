@@ -50,6 +50,16 @@ describe('AuthService', () => {
     expect(emailSender.sendOtpEmail).toHaveBeenCalledTimes(1);
   });
 
+  it('still returns devCode in production when mock provider is active', async () => {
+    process.env.NODE_ENV = 'production';
+    const { service } = createService();
+
+    const result = await service.requestEmailOtp('student@example.com');
+
+    expect(result.deliveryMode).toBe('mock');
+    expect(result.devCode).toHaveLength(6);
+  });
+
   it('logs in with a valid email otp and creates user when needed', async () => {
     const { service, repository, jwtService } = createService();
     repository.findAccountByOpenId.mockResolvedValue(null);

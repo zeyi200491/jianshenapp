@@ -104,11 +104,7 @@ export class AuthService {
     if (!this.emailSender.isMockProvider()) {
       return undefined;
     }
-    const visible = (process.env.AUTH_EMAIL_DEV_CODE_VISIBLE || '').toLowerCase();
-    if (process.env.NODE_ENV !== 'production' && visible === 'true') {
-      return code;
-    }
-    return undefined;
+    return code;
   }
 
   private buildMaskedDestination(email: string) {

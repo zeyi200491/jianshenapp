@@ -137,10 +137,12 @@ export default function LoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
+              aria-describedby="email-error"
+              aria-invalid={!emailValid && email.trim().length > 0}
               className="rounded-[22px] border border-[#d8e5ee] bg-[#f8fbfe] px-4 py-4 outline-none transition focus:border-[#0f7ea5]"
             />
           </label>
-          {!emailValid && email.trim().length > 0 ? <p className="text-sm text-[#a34d47]">邮箱格式不正确。</p> : null}
+          {!emailValid && email.trim().length > 0 ? <p id="email-error" role="alert" className="text-sm text-[#a34d47]">邮箱格式不正确。</p> : null}
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <label className="grid gap-2 text-sm text-[#5d7288]">

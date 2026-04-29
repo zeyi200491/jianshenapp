@@ -2,7 +2,7 @@ import { createHash, randomInt } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AppException } from '../../common/utils/app.exception';
-import { getAdminCredentials } from '../../config/security.config';
+import { getAdminCredentials, verifyPassword } from '../../config/security.config';
 import { AuthRepository } from './auth.repository';
 import { EmailSenderService } from './email-sender.service';
 
@@ -101,10 +101,10 @@ export class AuthService {
   }
 
   private resolveDevCode(code: string) {
-    const visible = (process.env.AUTH_EMAIL_DEV_CODE_VISIBLE || '').toLowerCase();
-    if (this.emailSender.isMockProvider()) {
-      return code;
+    if (!this.emailSender.isMockProvider()) {
+      return undefined;
     }
+    const visible = (process.env.AUTH_EMAIL_DEV_CODE_VISIBLE || '').toLowerCase();
     if (process.env.NODE_ENV !== 'production' && visible === 'true') {
       return code;
     }
@@ -192,7 +192,7 @@ export class AuthService {
     const normalizedEmail = this.normalizeEmail(email);
     const credentials = getAdminCredentials();
 
-    if (normalizedEmail !== this.normalizeEmail(credentials.email) || password !== credentials.password) {
+    if (normalizedEmail !== this.normalizeEmail(credentials.email) || !verifyPassword(password, credentials.password)) {
       throw new AppException('UNAUTHORIZED', '管理员账号或密码错误', 401);
     }
 

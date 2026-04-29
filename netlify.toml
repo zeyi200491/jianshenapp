@@ -1,5 +1,5 @@
 [build]
-command = "cd apps/web && npm run build"
+command = "corepack enable && pnpm install --frozen-lockfile --shamefully-hoist && pnpm --filter @campusfit/web build"
 publish = "apps/web/.next"
 
 [build.environment]

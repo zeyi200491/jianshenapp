@@ -388,7 +388,7 @@ export default function AssistantPage() {
       {error ? <LiveStatusCard tone="error">{error}</LiveStatusCard> : null}
       {historyLabel ? <LiveStatusCard tone="loading">{historyLabel}</LiveStatusCard> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.12fr_0.88fr]">
         <DashboardCard>
           <div className="flex items-center justify-between gap-4">
             <div>

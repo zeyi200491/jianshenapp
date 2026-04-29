@@ -9,7 +9,8 @@ import { AdminLoginDto } from './dto/admin-login.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { EmailRequestCodeDto } from './dto/email-request-code.dto';
 import { WechatLoginDto } from './dto/wechat-login.dto';
-import { buildSessionCookieHeaders, clearSessionCookieHeaders } from './session-cookie.util';
+import { generateCsrfToken } from '../../common/security/csrf.util';
+import { buildCsrfCookieHeader, buildSessionCookieHeaders, clearSessionCookieHeaders } from './session-cookie.util';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -28,7 +29,8 @@ export class AuthController {
   @ApiOperation({ summary: '使用邮箱验证码登录' })
   async verifyCode(@Body() dto: EmailLoginDto, @Res({ passthrough: true }) response: Response) {
     const session = await this.authService.loginWithEmailOtp(dto.email, dto.code);
-    response.setHeader('Set-Cookie', buildSessionCookieHeaders(session));
+    const csrfToken = generateCsrfToken();
+    response.setHeader('Set-Cookie', [...buildSessionCookieHeaders(session), buildCsrfCookieHeader(csrfToken)]);
     return session;
   }
 
@@ -37,7 +39,8 @@ export class AuthController {
   @ApiOperation({ summary: '微信登录兼容接口，仅保留给历史脚本或旧客户端' })
   async login(@Body() dto: WechatLoginDto, @Res({ passthrough: true }) response: Response) {
     const session = await this.authService.loginWithWechat(dto.code);
-    response.setHeader('Set-Cookie', buildSessionCookieHeaders(session));
+    const csrfToken = generateCsrfToken();
+    response.setHeader('Set-Cookie', [...buildSessionCookieHeaders(session), buildCsrfCookieHeader(csrfToken)]);
     return session;
   }
 
@@ -46,7 +49,8 @@ export class AuthController {
   @ApiOperation({ summary: '管理员登录' })
   async adminLogin(@Body() dto: AdminLoginDto, @Res({ passthrough: true }) response: Response) {
     const session = await this.authService.loginAdmin(dto.email, dto.password);
-    response.setHeader('Set-Cookie', buildSessionCookieHeaders(session));
+    const csrfToken = generateCsrfToken();
+    response.setHeader('Set-Cookie', [...buildSessionCookieHeaders(session), buildCsrfCookieHeader(csrfToken)]);
     return session;
   }
 

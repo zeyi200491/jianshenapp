@@ -28,7 +28,7 @@ export function ReviewOverviewSection({
 }: ReviewOverviewSectionProps) {
   return (
     <>
-      <section className="grid gap-6 xl:grid-cols-[0.82fr_0.78fr_0.7fr]">
+      <section className="grid gap-6 lg:grid-cols-3 xl:grid-cols-[0.82fr_0.78fr_0.7fr]">
         <DashboardCard className="bg-[#0f7ea5] text-white">
           <h2 className="text-[40px] font-semibold">本周亮点</h2>
           <div className="mt-8 space-y-6">
@@ -79,7 +79,7 @@ export function ReviewOverviewSection({
         </DashboardCard>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.24fr_0.76fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.24fr_0.76fr]">
         <DashboardCard className="bg-[#eef4f9]">
           <div className="flex items-center justify-between gap-4">
             <div>

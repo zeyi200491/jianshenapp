@@ -22,7 +22,7 @@ export class AppExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       response.status(exception.getStatus()).json({
         code: 'INTERNAL_ERROR',
-        message: exception.message,
+        message: '服务内部异常',
         data: null,
         requestId: request.requestId,
       });

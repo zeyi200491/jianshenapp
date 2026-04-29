@@ -41,7 +41,6 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "message": "服务内部异常",
                 "data": {
                     "requestId": getattr(request.state, "request_id", None),
-                    "detail": str(exc),
                 },
             },
         )

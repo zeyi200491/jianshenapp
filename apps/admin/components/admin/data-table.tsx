@@ -35,25 +35,33 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
-              const key = rowKey(row);
-              const href = rowHref?.(row);
-              return (
-                <tr key={key} className="border-t border-black/6 text-ink transition hover:bg-sand/35">
-                  {columns.map((column, index) => (
-                    <td key={`${key}-${column.key}`} className={cn("px-5 py-4 align-top", column.className)}>
-                      {href && index === 0 ? (
-                        <Link href={href} className="font-medium text-ink underline-offset-4 hover:underline">
-                          {column.render(row)}
-                        </Link>
-                      ) : (
-                        column.render(row)
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="px-5 py-16 text-center text-sm text-black/45">
+                  暂无数据
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => {
+                const key = rowKey(row);
+                const href = rowHref?.(row);
+                return (
+                  <tr key={key} className="border-t border-black/6 text-ink transition hover:bg-sand/35">
+                    {columns.map((column, index) => (
+                      <td key={`${key}-${column.key}`} className={cn("px-5 py-4 align-top", column.className)}>
+                        {href && index === 0 ? (
+                          <Link href={href} className="font-medium text-ink underline-offset-4 hover:underline">
+                            {column.render(row)}
+                          </Link>
+                        ) : (
+                          column.render(row)
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

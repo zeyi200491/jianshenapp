@@ -177,7 +177,7 @@ export default function TodayPage() {
             trainingCompletionRate={payload.checkInStatus.trainingCompletionRate}
           />
 
-          <section className="grid gap-6 xl:grid-cols-[0.84fr_1.16fr]">
+          <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[0.84fr_1.16fr]">
             <TodayCoachSection
               aiGuide={aiGuide}
               aiLoading={aiLoading}

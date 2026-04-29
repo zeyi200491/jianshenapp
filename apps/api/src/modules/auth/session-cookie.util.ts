@@ -1,9 +1,11 @@
 export const ACCESS_TOKEN_COOKIE = 'campusfit_access_token';
 export const REFRESH_TOKEN_COOKIE = 'campusfit_refresh_token';
+export const CSRF_TOKEN_COOKIE = 'campusfit_csrf_token';
 export const LEGACY_ADMIN_SESSION_COOKIE = 'campusfit_admin_session';
 
 const ACCESS_TOKEN_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const REFRESH_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+const CSRF_TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60;
 
 type CookieEnv = {
   nodeEnv?: string;
@@ -18,20 +20,27 @@ function shouldUseSecureCookie(options: CookieEnv = {}) {
   return (options.nodeEnv ?? process.env.NODE_ENV) === 'production';
 }
 
-function serializeCookie(name: string, value: string, maxAgeSeconds: number, options: CookieEnv = {}) {
+function serializeCookie(name: string, value: string, maxAgeSeconds: number, options: CookieEnv = {}, httpOnly = true) {
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     'Path=/',
     `Max-Age=${maxAgeSeconds}`,
-    'HttpOnly',
     'SameSite=Lax',
   ];
+
+  if (httpOnly) {
+    parts.push('HttpOnly');
+  }
 
   if (shouldUseSecureCookie(options)) {
     parts.push('Secure');
   }
 
   return parts.join('; ');
+}
+
+export function buildCsrfCookieHeader(csrfToken: string, options: CookieEnv = {}) {
+  return serializeCookie(CSRF_TOKEN_COOKIE, csrfToken, CSRF_TOKEN_MAX_AGE_SECONDS, options, false);
 }
 
 export function buildSessionCookieHeaders(tokens: TokenPair, options: CookieEnv = {}) {

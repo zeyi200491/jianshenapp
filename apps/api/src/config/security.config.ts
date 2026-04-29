@@ -1,4 +1,4 @@
-const DEVELOPMENT_JWT_SECRET = 'campusfit-dev-secret';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 export type SecurityEnv = Partial<Record<string, string | undefined>>;
 
@@ -6,63 +6,54 @@ function isProduction(env: SecurityEnv = process.env) {
   return env.NODE_ENV === 'production';
 }
 
-function isBlank(value: string | undefined) {
-  return !value || value.trim().length === 0;
+function requireEnv(name: string, env: SecurityEnv = process.env): string {
+  const value = env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
 }
 
 export function getJwtSecret(env: SecurityEnv = process.env) {
-  const configuredSecret = env.JWT_SECRET?.trim();
-  if (configuredSecret) {
-    return configuredSecret;
+  const secret = env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error('JWT_SECRET is required in all environments');
   }
-
-  if (isProduction(env)) {
-    throw new Error('JWT_SECRET is required in production');
+  if (isProduction(env) && secret.length < 24) {
+    throw new Error('JWT_SECRET must be at least 24 characters in production');
   }
+  return secret;
+}
 
-  return DEVELOPMENT_JWT_SECRET;
+export function hashPassword(password: string): string {
+  const salt = randomBytes(32).toString('base64');
+  const hash = scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 }).toString('base64');
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, hash] = storedHash.split(':');
+  if (!salt || !hash) return false;
+  const computed = scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 });
+  const expected = Buffer.from(hash, 'base64');
+  if (computed.length !== expected.length) return false;
+  return timingSafeEqual(computed, expected);
 }
 
 export function shouldEnableSwagger(env: SecurityEnv = process.env) {
   const configured = env.SWAGGER_ENABLED?.trim().toLowerCase();
-  if (configured === 'true') {
-    return true;
-  }
-  if (configured === 'false') {
-    return false;
-  }
-  return !isProduction(env);
+  if (configured === 'true') return true;
+  if (configured === 'false') return false;
+  return false;
 }
 
 export function getAdminCredentials(env: SecurityEnv = process.env) {
-  const email = env.ADMIN_EMAIL?.trim();
-  const password = env.ADMIN_PASSWORD?.trim();
-
-  if (isProduction(env)) {
-    if (isBlank(email)) {
-      throw new Error('ADMIN_EMAIL is required in production');
-    }
-    if (isBlank(password)) {
-      throw new Error('ADMIN_PASSWORD is required in production');
-    }
-  }
-
-  return {
-    email: email || 'ops@campusfit.ai',
-    password: password || 'CampusFit123',
-  };
+  const email = requireEnv('ADMIN_EMAIL', env);
+  const password = requireEnv('ADMIN_PASSWORD', env);
+  return { email, password };
 }
 
 export function validateApiSecurityConfig(env: SecurityEnv = process.env) {
-  const jwtSecret = getJwtSecret(env);
-
-  if (isProduction(env) && jwtSecret === DEVELOPMENT_JWT_SECRET) {
-    throw new Error('JWT_SECRET must not use the development fallback in production');
-  }
-
-  if (isProduction(env) && jwtSecret.length < 24) {
-    throw new Error('JWT_SECRET must be at least 24 characters in production');
-  }
-
+  getJwtSecret(env);
   getAdminCredentials(env);
 }

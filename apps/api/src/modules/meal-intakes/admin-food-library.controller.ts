@@ -1,11 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminFoodLibraryQueryDto } from './dto/admin-food-library-query.dto';
 import { CreateFoodLibraryItemDto, PatchFoodLibraryItemDto } from './dto/upsert-food-library-item.dto';
 import { FoodLibraryRepository } from './food-library.repository';
 
 @ApiTags('meal-intakes')
 @ApiBearerAuth()
+@UseGuards(RolesGuard)
+@Roles('operator')
 @Controller('admin/food-library-items')
 export class AdminFoodLibraryController {
   constructor(private readonly foodLibraryRepository: FoodLibraryRepository) {}

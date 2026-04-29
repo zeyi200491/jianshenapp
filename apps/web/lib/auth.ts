@@ -1,6 +1,6 @@
 import type { LoginSession } from '@/lib/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://jianshenapp-api-production.up.railway.app/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3050/api/v1';
 const SESSION_STORAGE_KEY = 'campusfit-web-session';
 
 let cachedSession: LoginSession | null = null;
@@ -16,7 +16,15 @@ function readSessionFromStorage() {
   }
 
   try {
-    return JSON.parse(raw) as LoginSession;
+    const parsed = JSON.parse(raw);
+    if (!parsed.user) {
+      return null;
+    }
+    return {
+      accessToken: '',
+      refreshToken: '',
+      user: parsed.user,
+    } as LoginSession;
   } catch {
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     return null;
@@ -33,7 +41,9 @@ function writeSessionToStorage(session: LoginSession | null) {
     return;
   }
 
-  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+    user: session.user,
+  }));
 }
 
 export function getStoredSession() {
@@ -65,7 +75,9 @@ export function clearStoredSession() {
   void fetch(`${API_BASE_URL}/auth/logout`, {
     method: 'POST',
     credentials: 'include',
-  }).catch(() => undefined);
+  }).catch((err: unknown) => {
+    console.error('Logout request failed:', err instanceof Error ? err.message : 'unknown error');
+  });
 }
 
 export function patchStoredSession(partial: Partial<LoginSession>) {

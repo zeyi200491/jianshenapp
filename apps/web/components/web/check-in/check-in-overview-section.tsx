@@ -40,7 +40,7 @@ export function CheckInOverviewSection({
 }: CheckInOverviewSectionProps) {
   return (
     <>
-      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[0.95fr_1.05fr]">
         <DashboardCard>
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -99,7 +99,7 @@ export function CheckInOverviewSection({
         </DashboardCard>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.02fr_1.02fr_0.96fr]">
+      <section className="grid gap-6 lg:grid-cols-3 xl:grid-cols-[1.02fr_1.02fr_0.96fr]">
         <DashboardCard>
           <div className="flex items-center justify-between">
             <AccentBadge kind="meal" className="h-16 w-16 bg-[#e8f3fb] text-[#0f7ea5]" iconClassName="h-7 w-7" />

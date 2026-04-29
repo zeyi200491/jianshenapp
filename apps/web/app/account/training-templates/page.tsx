@@ -482,7 +482,7 @@ export default function TrainingTemplatesPage() {
       {error ? <LiveStatusCard tone="error">{error}</LiveStatusCard> : null}
       {message ? <LiveStatusCard tone="success">{message}</LiveStatusCard> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[0.9fr_1.1fr]">
         <TrainingTemplateList
           templates={templates}
           selectedTemplateId={selectedTemplateId}

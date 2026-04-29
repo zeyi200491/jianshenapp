@@ -1,38 +1,55 @@
-﻿export class ApiError extends Error {
-  code: string;
-  status: number;
-  details: unknown;
-
-  constructor(code: string, message: string, status: number, details: unknown = null) {
-    super(message);
-    this.name = 'ApiError';
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-}
-
-type ApiEnvelope<T> = {
-  code: string;
-  message: string;
-  data: T;
-};
+﻿import { ApiError, ApiEnvelope, type MovementPattern, type RestRuleSource, type IntensityLevel, type TrainingFocus, type WeekdayKey, type TrainingDayType } from '@campusfit/shared';
+export { ApiError };
+export type { MovementPattern, RestRuleSource, IntensityLevel, TrainingFocus };
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://jianshenapp-api-production.up.railway.app/api/v1';
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3050/api/v1';
 
 function isStateChangingRequest(method?: string) {
   return !['GET', 'HEAD', 'OPTIONS'].includes((method ?? 'GET').toUpperCase());
 }
 
+function getCsrfToken(): string | null {
+  for (const segment of document.cookie.split(';')) {
+    const [name, ...rest] = segment.trim().split('=');
+    if (name === 'campusfit_csrf_token') {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+  return null;
+}
+
+const inflightRequests = new Map<string, Promise<unknown>>();
+
 async function requestJson<T>(path: string, init: RequestInit = {}, token?: string) {
+  const method = (init.method ?? 'GET').toUpperCase();
+
+  if (method === 'GET') {
+    const dedupKey = `${path}|${token ?? ''}`;
+    const pending = inflightRequests.get(dedupKey);
+    if (pending) return pending as Promise<T>;
+
+    const promise = executeRequest<T>(path, init, token);
+    inflightRequests.set(dedupKey, promise);
+    try {
+      return await promise;
+    } finally {
+      inflightRequests.delete(dedupKey);
+    }
+  }
+
+  return executeRequest<T>(path, init, token);
+}
+
+async function executeRequest<T>(path: string, init: RequestInit = {}, token?: string) {
+  const stateChanging = isStateChangingRequest(init.method);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    cache: 'no-store',
+    ...(stateChanging ? { cache: 'no-store' as const } : {}),
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(isStateChangingRequest(init.method) ? { 'X-CampusFit-CSRF': '1' } : {}),
+      ...(stateChanging ? { 'X-CampusFit-CSRF': getCsrfToken() ?? '' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
     },
@@ -52,21 +69,10 @@ async function requestJson<T>(path: string, init: RequestInit = {}, token?: stri
   return payload.data;
 }
 
-export type TrainingFocus = 'push' | 'pull' | 'legs';
-export type MovementPattern = 'compound' | 'isolation' | 'recovery';
-export type RestRuleSource = 'system' | 'manual';
-export type IntensityLevel = 'low' | 'medium' | 'high';
 export type ActiveTrainingSource = 'system' | 'user_override';
 export type TrainingTemplateStatus = 'active' | 'archived';
-export type TrainingTemplateWeekday =
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
-  | 'sunday';
-export type TrainingTemplateDayType = 'training' | 'rest';
+export type TrainingTemplateWeekday = WeekdayKey;
+export type TrainingTemplateDayType = TrainingDayType;
 
 export type LoginSession = {
   accessToken: string;

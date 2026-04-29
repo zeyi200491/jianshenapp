@@ -12,6 +12,7 @@ apps/api/prisma/migrations
 apps/ai-service/pytest-cache-files-*
 
 .codex/
+.claude/
 .local/
 .logs/
 .npm-cache/
@@ -31,6 +32,7 @@ logs/
 output/
 .codex-output/
 .worktrees/
+ai-login-snapshot.md
 
 .rtk/
 third_party/rtk/rtk.exe

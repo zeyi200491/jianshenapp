@@ -4,7 +4,6 @@ export function resolveAllowedOrigins(env: NodeJS.ProcessEnv = process.env) {
     'http://localhost:3200',
     'http://127.0.0.1:3100',
     'http://localhost:3100',
-    'https://xiaojianweb.netlify.app',
   ];
   const configured = env.CORS_ORIGIN?.split(',')
     .map((item) => item.trim())

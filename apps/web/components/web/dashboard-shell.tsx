@@ -91,7 +91,7 @@ function NavigationIcon({ icon, active }: { icon: NavItem['icon']; active: boole
 
   if (icon === 'dashboard') {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1.5" />
         <rect x="14" y="3" width="7" height="7" rx="1.5" />
         <rect x="3" y="14" width="7" height="7" rx="1.5" />
@@ -102,7 +102,7 @@ function NavigationIcon({ icon, active }: { icon: NavItem['icon']; active: boole
 
   if (icon === 'diet') {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 2v9" />
         <path d="M10 2v9" />
         <path d="M6 6h4" />
@@ -115,7 +115,7 @@ function NavigationIcon({ icon, active }: { icon: NavItem['icon']; active: boole
 
   if (icon === 'check') {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9" />
         <path d="m8.5 12.2 2.1 2.1 4.9-5.1" />
       </svg>
@@ -123,7 +123,7 @@ function NavigationIcon({ icon, active }: { icon: NavItem['icon']; active: boole
   }
 
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke={base} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <rect x="4" y="4" width="16" height="16" rx="3" />
       <path d="M8 2v4" />
       <path d="M16 2v4" />
@@ -137,7 +137,7 @@ function NavigationIcon({ icon, active }: { icon: NavItem['icon']; active: boole
 function TopIcon({ type }: { type: 'spark' | 'bell' | 'user' }) {
   if (type === 'spark') {
     return (
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3v4" />
         <path d="M12 17v4" />
         <path d="m5.6 5.6 2.8 2.8" />
@@ -152,7 +152,7 @@ function TopIcon({ type }: { type: 'spark' | 'bell' | 'user' }) {
 
   if (type === 'bell') {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 9a6 6 0 1 1 12 0c0 7 3 6 3 8H3c0-2 3-1 3-8" />
         <path d="M10 20a2 2 0 0 0 4 0" />
       </svg>
@@ -160,7 +160,7 @@ function TopIcon({ type }: { type: 'spark' | 'bell' | 'user' }) {
   }
 
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="8.5" r="3.2" />
       <path d="M5.5 19.5c1.2-3 3.7-4.5 6.5-4.5s5.3 1.5 6.5 4.5" />
     </svg>
@@ -169,8 +169,9 @@ function TopIcon({ type }: { type: 'spark' | 'bell' | 'user' }) {
 
 export function AccentGlyph({ kind, className, strokeWidth = 1.9 }: AccentGlyphProps) {
   const sharedProps = {
-    fill: 'none',
-    stroke: 'currentColor',
+    'aria-hidden': true as const,
+    fill: 'none' as const,
+    stroke: 'currentColor' as const,
     strokeWidth,
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
@@ -347,7 +348,7 @@ export function DashboardShell({ currentPath, header, children, sidebarHint = '�
           <div>
             <Link href="/today" className="flex items-center gap-3">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-[#0f7ea5] text-white shadow-[0_14px_32px_rgba(15,126,165,0.28)]">
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m13 2-6 10h5l-1 10 6-10h-5z" />
                 </svg>
               </span>
@@ -443,16 +444,6 @@ export function DashboardShell({ currentPath, header, children, sidebarHint = '�
                 <span className="text-sm font-semibold">我的档案</span>
               </span>
             </Link>
-            <button
-              type="button"
-              aria-label="通知中心"
-              title="通知中心即将上线"
-              aria-disabled="true"
-              disabled
-              className="grid h-11 w-11 place-items-center rounded-full bg-white text-[#61778f] shadow-[0_12px_24px_rgba(21,74,112,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <TopIcon type="bell" />
-            </button>
             <div className="grid h-12 w-12 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_35%,#17324d,#05080d)] text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ffcd5c] shadow-[0_12px_26px_rgba(8,22,40,0.28)]">
               {APP_BRAND_MONOGRAM}
             </div>

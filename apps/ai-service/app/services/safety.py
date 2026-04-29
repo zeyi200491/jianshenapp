@@ -53,6 +53,22 @@ class SafetyService:
                 r"兴奋剂",
                 r"违禁",
             ],
+            "prompt_injection": [
+                r"忽略(?:前面|之前|以上|以下|所有|先前)的?(?:指令|指示|说明|要求|规则)",
+                r"ignore\s+(?:previous|above|all|prior)\s+(?:instructions?|directives?|prompts?|rules?)",
+                r"系统(?:提示|指令|消息)",
+                r"system\s*(?:prompt|message|instruction)",
+                r"你(?:现在|从现在开始|现在起)是",
+                r"you\s+(?:are|now)\s+(?:an?\s+)?",
+                r"输出.*原始.*(?:指令|提示)",
+                r"reveal\s+(?:your|the)\s+(?:instructions?|system prompt)",
+                r"忘记.*(?:规则|指令|限制)",
+                r"forget\s+(?:the\s+)?(?:rules?|instructions?|constraints?)",
+                r"---",
+                r"```system",
+                r"<\|im_start\|>",
+                r"<\|im_end\|>",
+            ],
         }
 
     def evaluate_text(self, text: str) -> SafetyResult:

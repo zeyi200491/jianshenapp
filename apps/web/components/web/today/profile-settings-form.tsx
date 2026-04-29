@@ -43,7 +43,7 @@ export function ProfileSettingsForm({
         <summary className="cursor-pointer list-none text-lg font-semibold text-[#183550]">
           调整基础信息与计划参数
         </summary>
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.1fr_0.9fr]">
           <form className="grid gap-4" onSubmit={onSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm text-[#5b7287]">

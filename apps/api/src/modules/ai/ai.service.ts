@@ -260,8 +260,8 @@ export class AiService {
         training_plan: mapActiveTrainingPlan(trainingPlan),
       }),
       signal: AbortSignal.timeout(10000),
-    }).catch((error) => {
-      throw new AppException('AI_TIMEOUT', `AI 服务调用失败：${error instanceof Error ? error.message : 'unknown error'}`, 504);
+    }).catch(() => {
+      throw new AppException('AI_TIMEOUT', 'AI 服务暂时不可用，请稍后再试', 504);
     });
 
     const payload = (await response.json()) as {

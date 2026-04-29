@@ -14,7 +14,7 @@ import { experienceOptions, splitTypeOptions, templateStatusOptions } from "@/li
 import { queryString } from "@/lib/query-string";
 import { formatDateTime } from "@/lib/utils";
 
-const splitLabelMap = { full_body: "全身", upper_lower: "上下肢", push_pull_legs: "推拉腿", rest: "休息" } as const;
+const splitLabelMap = { full_body: "全身", upper_lower: "上下肢", push_pull_legs: "推拉腿", cardio: "有氧", rest: "休息" } as const;
 const experienceLabelMap = { beginner: "新手", intermediate: "中级" } as const;
 
 export default function TrainingTemplatesPage() {

@@ -17,12 +17,12 @@ function readSessionFromStorage() {
 
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed.user) {
+    if (!parsed.user || typeof parsed.accessToken !== 'string' || typeof parsed.refreshToken !== 'string') {
       return null;
     }
     return {
-      accessToken: '',
-      refreshToken: '',
+      accessToken: parsed.accessToken,
+      refreshToken: parsed.refreshToken,
       user: parsed.user,
     } as LoginSession;
   } catch {
@@ -42,6 +42,8 @@ function writeSessionToStorage(session: LoginSession | null) {
   }
 
   window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
     user: session.user,
   }));
 }

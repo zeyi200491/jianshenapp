@@ -90,12 +90,22 @@ function main() {
 
   const authSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/auth.ts'), 'utf8');
   expectIncludes(authSource, 'setStoredSessionOnboardingStatus', 'Auth helpers should expose onboarding status sync');
+  expectIncludes(authSource, 'accessToken: parsed\\.accessToken', 'Stored web sessions should recover the persisted access token');
+  expectIncludes(authSource, 'refreshToken: parsed\\.refreshToken', 'Stored web sessions should recover the persisted refresh token');
+  expectIncludes(authSource, 'accessToken: session\\.accessToken', 'Stored web sessions should persist the access token');
+  expectIncludes(authSource, 'refreshToken: session\\.refreshToken', 'Stored web sessions should persist the refresh token');
+  expectNotIncludes(authSource, "accessToken:\\s*''", 'Stored web sessions should not blank out the access token after reload');
+  expectNotIncludes(authSource, "refreshToken:\\s*''", 'Stored web sessions should not blank out the refresh token after reload');
   expectNotIncludes(authSource, 'localStorage', 'Web auth must not persist tokens in localStorage');
   expectNotIncludes(authSource, 'SESSION_KEY', 'Web auth must not keep browser token-storage keys');
 
   const webApiSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/api.ts'), 'utf8');
   expectIncludes(webApiSource, 'X-CampusFit-CSRF', 'Web API client should send a CSRF marker on cookie-authenticated mutations');
   expectIncludes(webApiSource, 'isStateChangingRequest', 'Web API client should only add the CSRF marker to state-changing requests');
+
+  const manifestSource = readFileSync(resolve(rootDirectory, 'apps/web/public/manifest.json'), 'utf8');
+  expectNotIncludes(manifestSource, 'icon-192\\.png', 'Web manifest should not reference a missing 192px icon asset');
+  expectNotIncludes(manifestSource, 'icon-512\\.png', 'Web manifest should not reference a missing 512px icon asset');
 
   const webNextConfigSource = readFileSync(resolve(rootDirectory, 'apps/web/next.config.ts'), 'utf8');
   expectIncludes(webNextConfigSource, 'Content-Security-Policy', 'Web app should emit a baseline CSP response header');

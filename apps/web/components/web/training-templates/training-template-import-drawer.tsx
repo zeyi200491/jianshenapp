@@ -14,7 +14,7 @@ const weekdayLabels: Record<TrainingTemplateWeekday, string> = {
 
 const matchStatusLabels = {
   matched: '已匹配标准动作',
-  free_text: '按自由文本保存',
+  free_text: '按自由文本保留',
   warning: '需要人工确认',
   invalid: '无法导入',
 } as const;
@@ -55,25 +55,15 @@ export function TrainingTemplateImportDrawer({
   if (!open) {
     return null;
   }
-
-  const previewSelectableDays =
-    preview?.parsedDays.filter((day) => day.selectable).map((day) => day.weekday) ?? [];
-  const hasSelectedWeekdays = selectedWeekdays.length > 0;
-
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-[#102235]/35">
-      <button
-        type="button"
-        aria-label="关闭文字导入"
-        className="flex-1 cursor-default"
-        onClick={onClose}
-      />
+      <button type="button" aria-label="关闭文字导入" className="flex-1 cursor-default" onClick={onClose} />
       <section className="flex h-full w-full max-w-[760px] flex-col bg-[#f7fbff] shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-[#d7e3ec] px-6 py-5">
           <div>
             <p className="text-lg font-semibold text-[#17324d]">文字导入</p>
             <p className="mt-1 text-sm leading-6 text-[#5f768d]">
-              把训练文本贴进来，先解析预览，确认后只覆盖你勾选的那些天。
+              把训练文本贴进来，解析后生成一份新的未保存草稿，再回到编辑区继续微调。
             </p>
             <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#0f7ea5]">
               {templateName}
@@ -94,7 +84,7 @@ export function TrainingTemplateImportDrawer({
               <div>
                 <p className="text-base font-semibold text-[#17324d]">导入文本</p>
                 <p className="mt-1 text-sm text-[#5f768d]">
-                  支持整周或部分天。识别不了的行会单独标出来，不会直接覆盖。
+                  支持整周或部分天。识别不了的行会单独标出来，你可以先生成草稿再逐项修正。
                 </p>
               </div>
               <button
@@ -118,10 +108,10 @@ export function TrainingTemplateImportDrawer({
                 disabled={parsing || applying || !rawText.trim()}
                 className="rounded-full bg-[#0f7ea5] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {parsing ? '解析中...' : '开始解析'}
+                {parsing ? '生成中...' : '生成草稿模板'}
               </button>
               <span className="text-xs leading-6 text-[#5f768d]">
-                先解析，不落库；只有点“确认覆盖”之后才会真正改模板。
+                这一步只会生成一份未保存草稿，不会直接改动已保存模板。
               </span>
             </div>
           </div>
@@ -162,9 +152,15 @@ export function TrainingTemplateImportDrawer({
                 </div>
               ) : null}
 
+              <div className="rounded-[24px] bg-white px-5 py-5">
+                <p className="text-base font-semibold text-[#17324d]">解析结果</p>
+                <p className="mt-1 text-sm text-[#5f768d]">
+                  生成草稿后，你还可以继续修改标题、训练日和动作内容。
+                </p>
+              </div>
+
               <div className="space-y-4">
                 {preview.parsedDays.map((day) => {
-                  const selected = selectedWeekdays.includes(day.weekday);
                   const statusLabel =
                     day.dayType === 'rest'
                       ? '休息日'
@@ -177,21 +173,12 @@ export function TrainingTemplateImportDrawer({
                   return (
                     <div key={day.weekday} className="rounded-[24px] bg-white px-5 py-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <label className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            disabled={!day.selectable}
-                            onChange={() => onToggleWeekday(day.weekday)}
-                            className="mt-1 h-4 w-4 rounded border-[#c7d8e4] text-[#0f7ea5]"
-                          />
-                          <div>
-                            <p className="text-base font-semibold text-[#17324d]">
-                              {weekdayLabels[day.weekday]} · {day.title}
-                            </p>
-                            <p className="mt-1 text-sm text-[#5f768d]">{statusLabel}</p>
-                          </div>
-                        </label>
+                        <div>
+                          <p className="text-base font-semibold text-[#17324d]">
+                            {weekdayLabels[day.weekday]} · {day.title}
+                          </p>
+                          <p className="mt-1 text-sm text-[#5f768d]">{statusLabel}</p>
+                        </div>
                         <span className="rounded-full bg-[#eef6fb] px-3 py-2 text-xs font-semibold text-[#0f7ea5]">
                           {day.dayType === 'rest' ? '休息 / 恢复' : `${day.items.length} 个动作`}
                         </span>
@@ -205,7 +192,7 @@ export function TrainingTemplateImportDrawer({
 
                       {day.dayType === 'rest' ? (
                         <p className="mt-4 text-sm leading-7 text-[#5f768d]">
-                          这个训练日会被覆盖成休息日，并清空原有动作。
+                          这个训练日会在草稿里标记为休息日，后续仍可在编辑器里继续调整。
                         </p>
                       ) : (
                         <div className="mt-4 space-y-3">
@@ -216,9 +203,7 @@ export function TrainingTemplateImportDrawer({
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-semibold text-[#17324d]">
-                                    {item.exerciseName}
-                                  </p>
+                                  <p className="text-sm font-semibold text-[#17324d]">{item.exerciseName}</p>
                                   <p className="mt-1 text-xs leading-6 text-[#5f768d]">
                                     {item.repText || item.reps || '自定义'} × {item.sets ?? '-'} 组
                                   </p>
@@ -227,13 +212,9 @@ export function TrainingTemplateImportDrawer({
                                   {matchStatusLabels[item.matchStatus]}
                                 </span>
                               </div>
-                              <p className="mt-3 text-xs leading-6 text-[#5f768d]">
-                                原文：{item.rawLine}
-                              </p>
+                              <p className="mt-3 text-xs leading-6 text-[#5f768d]">原文：{item.rawLine}</p>
                               {item.notes ? (
-                                <p className="mt-1 text-xs leading-6 text-[#5f768d]">
-                                  备注：{item.notes}
-                                </p>
+                                <p className="mt-1 text-xs leading-6 text-[#5f768d]">备注：{item.notes}</p>
                               ) : null}
                             </div>
                           ))}
@@ -242,25 +223,6 @@ export function TrainingTemplateImportDrawer({
                     </div>
                   );
                 })}
-              </div>
-
-              <div className="rounded-[24px] bg-white px-5 py-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-[#17324d]">确认覆盖</p>
-                    <p className="mt-1 text-sm text-[#5f768d]">
-                      只会覆盖本次勾选的周几；没勾的天保持原样。
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onApply}
-                    disabled={applying || parsing || !hasSelectedWeekdays || previewSelectableDays.length === 0}
-                    className="rounded-full bg-[#17324d] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {applying ? '覆盖中...' : '确认覆盖'}
-                  </button>
-                </div>
               </div>
             </>
           ) : null}

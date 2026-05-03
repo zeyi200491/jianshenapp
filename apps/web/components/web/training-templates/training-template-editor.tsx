@@ -30,7 +30,6 @@ type TrainingTemplateEditorProps = {
   onSave: () => void;
   onOpenImport: () => void;
   disabled?: boolean;
-  importDisabled?: boolean;
   importHint?: string;
 };
 
@@ -93,7 +92,6 @@ export function TrainingTemplateEditor({
   onSave,
   onOpenImport,
   disabled = false,
-  importDisabled = false,
   importHint = '',
 }: TrainingTemplateEditorProps) {
   if (!draft) {
@@ -118,7 +116,7 @@ export function TrainingTemplateEditor({
           <button
             type="button"
             onClick={onOpenImport}
-            disabled={disabled || importDisabled}
+            disabled={disabled}
             className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#17324d] disabled:opacity-60"
           >
             文字导入
@@ -133,6 +131,13 @@ export function TrainingTemplateEditor({
           </button>
         </div>
       </div>
+
+      {!draft.id ? (
+        <p className="mt-3 rounded-[18px] bg-[#eef6fb] px-4 py-3 text-sm leading-7 text-[#24516a]">
+          当前是未保存草稿，确认无误后再保存模板
+        </p>
+      ) : null}
+
       {importHint ? <p className="mt-3 text-xs leading-6 text-[#5f768d]">{importHint}</p> : null}
 
       <div className="mt-6 grid gap-4">
@@ -173,7 +178,7 @@ export function TrainingTemplateEditor({
               <PanelTag>{day.dayType === 'rest' ? '恢复' : '执行'}</PanelTag>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr]">
+            <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr_0.8fr]">
               <select
                 value={day.dayType}
                 onChange={(event) =>
@@ -209,23 +214,14 @@ export function TrainingTemplateEditor({
               <input
                 value={day.splitType ?? ''}
                 onChange={(event) =>
-                  onChange(updateDay(draft, dayIndex, (current) => ({ ...current, splitType: event.target.value || null })))
-                }
-                placeholder="splitType"
-                disabled={day.dayType === 'rest'}
-                className="rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none disabled:bg-[#eef3f7]"
-              />
-              <input
-                value={day.durationMinutes ?? ''}
-                onChange={(event) =>
                   onChange(
                     updateDay(draft, dayIndex, (current) => ({
                       ...current,
-                      durationMinutes: event.target.value ? Number(event.target.value) : null,
+                      splitType: event.target.value || null,
                     })),
                   )
                 }
-                placeholder="时长（分钟）"
+                placeholder="splitType"
                 disabled={day.dayType === 'rest'}
                 className="rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none disabled:bg-[#eef3f7]"
               />
@@ -266,27 +262,29 @@ export function TrainingTemplateEditor({
               <div className="mt-4 space-y-3">
                 {day.items.map((item, itemIndex) => (
                   <div key={`${day.weekday}-${itemIndex}`} className="rounded-[20px] bg-white px-4 py-4">
-                    <div className="grid gap-3 md:grid-cols-[1fr_1fr_0.7fr_0.7fr_0.7fr]">
+                    <div className="grid gap-3 md:grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr]">
                       <input
                         value={item.exerciseName}
                         onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, exerciseName: event.target.value })))
+                          onChange(
+                            updateItem(draft, dayIndex, itemIndex, (current) => ({
+                              ...current,
+                              exerciseName: event.target.value,
+                            })),
+                          )
                         }
                         placeholder="动作名称"
                         className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
                       />
                       <input
-                        value={item.exerciseCode}
-                        onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, exerciseCode: event.target.value })))
-                        }
-                        placeholder="动作编码"
-                        className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
-                      />
-                      <input
                         value={item.sets}
                         onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, sets: Number(event.target.value) || 0 })))
+                          onChange(
+                            updateItem(draft, dayIndex, itemIndex, (current) => ({
+                              ...current,
+                              sets: Number(event.target.value) || 0,
+                            })),
+                          )
                         }
                         placeholder="组数"
                         className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
@@ -325,7 +323,12 @@ export function TrainingTemplateEditor({
                       <input
                         value={item.notes ?? ''}
                         onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, notes: event.target.value })))
+                          onChange(
+                            updateItem(draft, dayIndex, itemIndex, (current) => ({
+                              ...current,
+                              notes: event.target.value,
+                            })),
+                          )
                         }
                         placeholder="动作备注"
                         className="min-w-[240px] flex-1 rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"

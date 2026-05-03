@@ -309,8 +309,36 @@ function main() {
   expectIncludes(trainingTemplateEditorSource, '周模板编辑器', 'Training template editor should expose the weekly editor title');
   expectIncludes(trainingTemplateEditorSource, '保存模板', 'Training template editor should expose a save action');
   expectIncludes(trainingTemplateEditorSource, '文字导入', 'Training template editor should expose the text-import entry');
-  expectIncludes(trainingTemplateImportDrawerSource, '开始解析', 'Training template import drawer should expose the parse action');
-  expectIncludes(trainingTemplateImportDrawerSource, '确认覆盖', 'Training template import drawer should expose the apply action');
+  expectIncludes(
+    trainingTemplateEditorSource,
+    '当前是未保存草稿，确认无误后再保存模板',
+    'Training template editor should expose the unsaved draft guidance',
+  );
+  expectNotIncludes(
+    trainingTemplateEditorSource,
+    'importDisabled',
+    'Training template editor should not hard-disable text import for unsaved drafts',
+  );
+  expectNotIncludes(
+    trainingTemplateEditorSource,
+    'value=\\{day\\.durationMinutes',
+    'Training template editor should not render the day duration input',
+  );
+  expectNotIncludes(
+    trainingTemplateEditorSource,
+    'value=\\{item\\.exerciseCode',
+    'Training template editor should not render the manual exercise-code input',
+  );
+  expectIncludes(
+    trainingTemplateImportDrawerSource,
+    '生成草稿模板',
+    'Training template import drawer should expose the new draft-generation action',
+  );
+  expectNotIncludes(
+    trainingTemplateImportDrawerSource,
+    '确认覆盖',
+    'Training template import drawer should stop framing import as direct overwrite',
+  );
   expectIncludes(trainingTemplateImportDrawerSource, '示例格式', 'Training template import drawer should expose an example format helper');
 
   const statusSource = readFileSync(resolve(rootDirectory, 'apps/web/app/status/page.tsx'), 'utf8');

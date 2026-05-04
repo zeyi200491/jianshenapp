@@ -178,6 +178,25 @@ def _classify_scope(question: str) -> dict[str, str]:
         "自杀",
         "自残",
     )
+    severe_pain_markers = (
+        "剧痛",
+        "严重",
+        "无法站立",
+        "站不起来",
+        "突出",
+        "撕裂",
+        "断裂",
+        "继续练",
+        "还能继续练",
+    )
+    mild_pain_markers = (
+        "轻微",
+        "轻度",
+        "低风险调整",
+        "训练怎么调整",
+        "今天训练怎么调整",
+        "怎么低风险调整",
+    )
     unrelated_markers = (
         "python",
         "java",
@@ -252,8 +271,14 @@ def _classify_scope(question: str) -> dict[str, str]:
     if any(marker in normalized_question for marker in high_risk_markers):
         return {"label": "out_of_scope", "reason": "问题涉及医疗高风险、严重伤病或诊断用药，不属于当前支持范围。"}
 
+    if any(marker in normalized_question for marker in severe_pain_markers):
+        return {"label": "out_of_scope", "reason": "问题指向严重疼痛、重伤或诊断判断，已经超出轻度训练调整范围。"}
+
     if any(marker in normalized_question for marker in unrelated_markers):
         return {"label": "out_of_scope", "reason": "问题主题明显不属于训练、饮食、恢复或体重管理场景。"}
+
+    if any(marker in normalized_question for marker in mild_pain_markers) and any(marker in normalized_question for marker in fitness_markers):
+        return {"label": "in_scope", "reason": "问题属于轻度不适下的训练调整，仍在可讨论的健身支持范围内。"}
 
     if any(marker in normalized_question for marker in boundary_markers):
         return {"label": "uncertain", "reason": "问题涉及疼痛、康复或是否继续训练的边界情况，需要谨慎分类。"}

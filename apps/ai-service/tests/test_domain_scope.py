@@ -62,7 +62,10 @@ def test_prompt_manager_renders_out_of_scope_reply() -> None:
     ("question", "expected_label"),
     [
         ("减脂期晚餐怎么安排蛋白质和主食？", "in_scope"),
+        ("下背轻微不适，今天训练怎么低风险调整？", "in_scope"),
         ("膝盖有点疼还能不能练深蹲？", "uncertain"),
+        ("膝盖剧痛还要不要继续练？", "out_of_scope"),
+        ("严重腰痛怎么判断是不是椎间盘突出？", "out_of_scope"),
         ("胸痛时要不要马上吃处方药，顺便判断是不是心梗？", "out_of_scope"),
         ("帮我写一段 Python 排序代码。", "out_of_scope"),
     ],
@@ -73,9 +76,11 @@ def test_mock_llm_client_returns_scope_classification_json(question: str, expect
         context={"question": question},
     )
 
+    assert set(payload.keys()) == {"label", "reason"}
     assert payload["label"] in ALLOWED_SCOPE_LABELS
     assert payload["label"] == expected_label
-    assert payload["reason"]
+    assert isinstance(payload["reason"], str)
+    assert payload["reason"].strip()
 
 
 def test_mock_llm_client_returns_out_of_scope_reply_json() -> None:

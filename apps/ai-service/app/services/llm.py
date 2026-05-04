@@ -107,14 +107,7 @@ class MockLLMClient(BaseLLMClient):
         if task_name == "rag_answer":
             return json.dumps(_build_mock_rag_answer(context), ensure_ascii=False)
 
-        return json.dumps(
-            {
-                "answer": "当前场景已收到，但没有匹配到对应模板，建议走静态兜底。",
-                "tips": ["保持结构化上下文输入。"],
-                "riskNote": "",
-            },
-            ensure_ascii=False,
-        )
+        raise ValueError(f"Unsupported mock task: {task_name}")
 
 
 class OpenAICompatibleLLMClient(BaseLLMClient):
@@ -165,42 +158,40 @@ def _extract_context(user_prompt: str) -> dict[str, Any]:
 
 def _classify_scope(question: str) -> dict[str, str]:
     normalized_question = question.lower()
-    in_scope_keywords = (
-        "训练",
-        "动作",
-        "饮食",
-        "热量",
-        "蛋白",
-        "碳水",
-        "脂肪",
-        "食材",
-        "减脂",
-        "增肌",
-        "恢复",
-        "睡眠",
-        "补剂",
-        "蛋白粉",
-        "肌酸",
-        "体重",
-        "康复",
-        "疼痛",
-        "拉伸",
-        "有氧",
-        "力量",
+
+    high_risk_markers = (
+        "急救",
+        "急诊",
+        "胸痛",
+        "呼吸困难",
+        "昏迷",
+        "骨折",
+        "脱臼",
+        "大出血",
+        "处方药",
+        "抗生素",
+        "激素药",
+        "心梗",
+        "中风",
+        "诊断",
+        "确诊",
+        "自杀",
+        "自残",
     )
-    out_of_scope_keywords = (
+    unrelated_markers = (
         "python",
         "java",
         "代码",
         "编程",
         "法律",
+        "律师",
         "起诉",
         "合同",
         "离婚",
+        "理财",
         "股票",
         "基金",
         "投资",
-        "理财",
         "八卦",
         "明星",
         "旅游",
@@ -209,41 +200,68 @@ def _classify_scope(question: str) -> dict[str, str]:
         "作业",
         "论文",
         "代写",
-        "自杀",
-        "自残",
-        "处方药",
-        "抑郁",
-        "诊断",
-        "急救",
-        "骨折",
-        "胸痛",
     )
-    uncertain_keywords = (
+    boundary_markers = (
+        "疼",
+        "痛",
+        "酸痛",
+        "拉伤",
+        "扭伤",
+        "受伤",
+        "不适",
+        "康复",
+        "恢复训练",
+        "能不能练",
+        "还能练",
+        "训练调整",
         "膝盖",
         "腰",
         "肩",
-        "疼",
-        "痛",
-        "受伤",
-        "康复训练",
-        "针灸",
-        "理疗",
-        "能不能练",
+        "手腕",
+        "脚踝",
+    )
+    fitness_markers = (
+        "训练",
+        "动作",
+        "深蹲",
+        "硬拉",
+        "卧推",
+        "跑步",
+        "有氧",
+        "力量",
+        "增肌",
+        "减脂",
+        "体重",
+        "体脂",
+        "热量",
+        "蛋白",
+        "碳水",
+        "脂肪",
+        "饮食",
+        "晚餐",
+        "食材",
+        "外卖",
+        "补剂",
+        "蛋白粉",
+        "肌酸",
+        "睡眠",
+        "恢复",
+        "拉伸",
     )
 
-    if any(keyword in normalized_question for keyword in out_of_scope_keywords):
-        return {"label": "out_of_scope", "reason": "问题明显超出健身训练与饮食支持范围。"}
+    if any(marker in normalized_question for marker in high_risk_markers):
+        return {"label": "out_of_scope", "reason": "问题涉及医疗高风险、严重伤病或诊断用药，不属于当前支持范围。"}
 
-    has_in_scope_keyword = any(keyword in normalized_question for keyword in in_scope_keywords)
-    has_uncertain_keyword = any(keyword in normalized_question for keyword in uncertain_keywords)
+    if any(marker in normalized_question for marker in unrelated_markers):
+        return {"label": "out_of_scope", "reason": "问题主题明显不属于训练、饮食、恢复或体重管理场景。"}
 
-    if has_in_scope_keyword and not has_uncertain_keyword:
-        return {"label": "in_scope", "reason": "问题聚焦训练、饮食、恢复或补剂等支持范围。"}
+    if any(marker in normalized_question for marker in boundary_markers):
+        return {"label": "uncertain", "reason": "问题涉及疼痛、康复或是否继续训练的边界情况，需要谨慎分类。"}
 
-    if has_uncertain_keyword:
-        return {"label": "uncertain", "reason": "问题涉及疼痛或康复边界，需要结合具体程度再判断。"}
+    if any(marker in normalized_question for marker in fitness_markers):
+        return {"label": "in_scope", "reason": "问题聚焦训练、饮食、恢复、补剂或体重管理等支持范围。"}
 
-    return {"label": "out_of_scope", "reason": "问题与当前支持的训练饮食场景关联较弱。"}
+    return {"label": "out_of_scope", "reason": "问题与当前支持的健身饮食方向关联不足。"}
 
 
 def _build_out_of_scope_reply(*, question: str, scope_reason: str) -> dict[str, Any]:

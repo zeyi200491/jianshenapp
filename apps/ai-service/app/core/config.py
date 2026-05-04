@@ -12,6 +12,7 @@ class Settings(BaseModel):
     ai_env: str = Field(default="local")
     ai_provider: str = Field(default="mock")
     ai_model: str = Field(default="campusfit-mock")
+    ai_scope_model: str | None = Field(default=None)
     ai_timeout_seconds: int = Field(default=12)
     ai_openai_base_url: str | None = Field(default=None)
     ai_openai_api_key: str | None = Field(default=None)
@@ -50,9 +51,9 @@ class Settings(BaseModel):
             if not self.ai_openai_api_key:
                 missing.append("AI_OPENAI_API_KEY")
             if missing:
-                return f"缺少配置：{', '.join(missing)}"
+                return f"缺少兼容接口配置：{', '.join(missing)}"
             return None
-        return f"未支持的 provider：{self.ai_provider}"
+        return f"不支持的 provider：{self.ai_provider}"
 
 
 def _normalize_env_value(value: str | None) -> str | None:
@@ -155,6 +156,7 @@ def build_settings(
         resolved_file_env,
         aliases=("OPENAI_MODEL",),
     )
+    ai_scope_model = _pick_env("AI_SCOPE_MODEL", resolved_env, resolved_file_env)
 
     configured_provider = _pick_env("AI_PROVIDER", resolved_env, resolved_file_env)
     if configured_provider in (None, "mock"):
@@ -175,6 +177,7 @@ def build_settings(
         ai_env=_pick_env("AI_ENV", resolved_env, resolved_file_env) or "local",
         ai_provider=ai_provider,
         ai_model=ai_model,
+        ai_scope_model=ai_scope_model,
         ai_timeout_seconds=int(ai_timeout_raw),
         ai_openai_base_url=ai_openai_base_url,
         ai_openai_api_key=ai_openai_api_key,

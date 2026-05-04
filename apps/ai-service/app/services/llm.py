@@ -11,12 +11,26 @@ from app.core.config import Settings
 
 class BaseLLMClient(abc.ABC):
     @abc.abstractmethod
-    async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete(
+        self,
+        *,
+        task_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+    ) -> str:
         raise NotImplementedError
 
 
 class MockLLMClient(BaseLLMClient):
-    async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete(
+        self,
+        *,
+        task_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+    ) -> str:
         context = _extract_context(user_prompt)
 
         if task_name == "diet_explanation":
@@ -96,9 +110,16 @@ class OpenAICompatibleLLMClient(BaseLLMClient):
             raise ValueError("openai_compatible 提供方缺少必要配置")
         self._settings = settings
 
-    async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete(
+        self,
+        *,
+        task_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+    ) -> str:
         payload = {
-            "model": self._settings.ai_model,
+            "model": model or self._settings.ai_model,
             "temperature": 0.2,
             "messages": [
                 {"role": "system", "content": system_prompt},

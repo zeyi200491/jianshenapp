@@ -79,6 +79,65 @@ def test_build_settings_replaces_mock_model_when_real_provider_is_enabled() -> N
     assert settings.ai_model == "gpt-4.1-mini"
 
 
+def test_build_settings_supports_scope_model_for_openai_compatible() -> None:
+    settings = build_settings(
+        env={
+            "AI_MODEL": "gpt-4.1-mini",
+            "AI_SCOPE_MODEL": "gpt-4.1-nano",
+            "OPENAI_BASE_URL": "https://token-plan-cn.xiaomimimo.com/v1",
+            "OPENAI_API_KEY": "test-compatible-key",
+        },
+        file_env={},
+    )
+
+    assert settings.ai_provider == "openai_compatible"
+    assert settings.ai_model == "gpt-4.1-mini"
+    assert settings.ai_scope_model == "gpt-4.1-nano"
+
+
+def test_build_settings_auto_enables_openai_compatible_without_explicit_provider() -> None:
+    settings = build_settings(
+        env={
+            "AI_MODEL": "gpt-4.1-mini",
+            "OPENAI_BASE_URL": "https://token-plan-cn.xiaomimimo.com/v1",
+            "OPENAI_API_KEY": "test-compatible-key",
+        },
+        file_env={},
+    )
+
+    assert settings.ai_provider == "openai_compatible"
+    assert settings.provider_ready is True
+
+
+def test_build_settings_supports_custom_openai_compatible_gateway() -> None:
+    settings = build_settings(
+        env={
+            "AI_PROVIDER": "openai_compatible",
+            "AI_MODEL": "moonshot-v1-8k",
+            "OPENAI_BASE_URL": "https://token-plan-cn.xiaomimimo.com/v1",
+            "OPENAI_API_KEY": "test-compatible-key",
+        },
+        file_env={},
+    )
+
+    assert settings.ai_openai_base_url == "https://token-plan-cn.xiaomimimo.com/v1"
+    assert settings.ai_openai_api_key == "test-compatible-key"
+    assert settings.provider_ready is True
+
+
+def test_build_settings_reports_clear_issue_when_openai_compatible_config_is_missing() -> None:
+    settings = build_settings(
+        env={
+            "AI_PROVIDER": "openai_compatible",
+            "AI_MODEL": "gpt-4.1-mini",
+        },
+        file_env={},
+    )
+
+    assert settings.provider_ready is False
+    assert settings.provider_issue == "缺少兼容接口配置：AI_OPENAI_BASE_URL, AI_OPENAI_API_KEY"
+
+
 def test_build_settings_uses_explicit_cors_origins() -> None:
     settings = build_settings(
         env={

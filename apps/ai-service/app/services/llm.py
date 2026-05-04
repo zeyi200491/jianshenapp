@@ -186,8 +186,6 @@ def _classify_scope(question: str) -> dict[str, str]:
         "突出",
         "撕裂",
         "断裂",
-        "继续练",
-        "还能继续练",
     )
     mild_pain_markers = (
         "轻微",

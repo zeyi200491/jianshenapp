@@ -63,7 +63,9 @@ def test_prompt_manager_renders_out_of_scope_reply() -> None:
     [
         ("减脂期晚餐怎么安排蛋白质和主食？", "in_scope"),
         ("下背轻微不适，今天训练怎么低风险调整？", "in_scope"),
+        ("轻微肩部不适，可以继续练吗？", "uncertain"),
         ("膝盖有点疼还能不能练深蹲？", "uncertain"),
+        ("腰有点痛，今天还能继续练硬拉吗？", "uncertain"),
         ("膝盖剧痛还要不要继续练？", "out_of_scope"),
         ("严重腰痛怎么判断是不是椎间盘突出？", "out_of_scope"),
         ("胸痛时要不要马上吃处方药，顺便判断是不是心梗？", "out_of_scope"),

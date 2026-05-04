@@ -37,6 +37,10 @@ class Settings(BaseModel):
         return self.base_dir / self.log_dir / "requests.log"
 
     @property
+    def resolved_ai_scope_model(self) -> str:
+        return self.ai_scope_model or self.ai_model
+
+    @property
     def provider_ready(self) -> bool:
         return self.provider_issue is None
 
@@ -45,13 +49,19 @@ class Settings(BaseModel):
         if self.ai_provider == "mock":
             return None
         if self.ai_provider == "openai_compatible":
-            missing: list[str] = []
+            missing_alias_names: list[str] = []
+            missing_internal_names: list[str] = []
             if not self.ai_openai_base_url:
-                missing.append("AI_OPENAI_BASE_URL")
+                missing_alias_names.append("OPENAI_BASE_URL")
+                missing_internal_names.append("AI_OPENAI_BASE_URL")
             if not self.ai_openai_api_key:
-                missing.append("AI_OPENAI_API_KEY")
-            if missing:
-                return f"缺少兼容接口配置：{', '.join(missing)}"
+                missing_alias_names.append("OPENAI_API_KEY")
+                missing_internal_names.append("AI_OPENAI_API_KEY")
+            if missing_alias_names:
+                return (
+                    f"缺少兼容接口配置：{'、'.join(missing_alias_names)}"
+                    f"（或 {'、'.join(missing_internal_names)}）"
+                )
             return None
         return f"不支持的 provider：{self.ai_provider}"
 

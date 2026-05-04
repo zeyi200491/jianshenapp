@@ -33,6 +33,19 @@ class MockLLMClient(BaseLLMClient):
     ) -> str:
         context = _extract_context(user_prompt)
 
+        if task_name == "scope_classification":
+            question = str(context.get("question", ""))
+            result = _classify_scope(question)
+            return json.dumps(result, ensure_ascii=False)
+
+        if task_name == "out_of_scope_reply":
+            question = str(context.get("question", ""))
+            scope_reason = str(context.get("scope_reason", "")).strip()
+            return json.dumps(
+                _build_out_of_scope_reply(question=question, scope_reason=scope_reason),
+                ensure_ascii=False,
+            )
+
         if task_name == "diet_explanation":
             diet_plan = context["diet_plan"]
             user_profile = context["user_profile"]
@@ -148,6 +161,105 @@ def _extract_context(user_prompt: str) -> dict[str, Any]:
     start = user_prompt.index(marker) + len(marker)
     end = user_prompt.rindex("```")
     return json.loads(user_prompt[start:end].strip())
+
+
+def _classify_scope(question: str) -> dict[str, str]:
+    normalized_question = question.lower()
+    in_scope_keywords = (
+        "训练",
+        "动作",
+        "饮食",
+        "热量",
+        "蛋白",
+        "碳水",
+        "脂肪",
+        "食材",
+        "减脂",
+        "增肌",
+        "恢复",
+        "睡眠",
+        "补剂",
+        "蛋白粉",
+        "肌酸",
+        "体重",
+        "康复",
+        "疼痛",
+        "拉伸",
+        "有氧",
+        "力量",
+    )
+    out_of_scope_keywords = (
+        "python",
+        "java",
+        "代码",
+        "编程",
+        "法律",
+        "起诉",
+        "合同",
+        "离婚",
+        "股票",
+        "基金",
+        "投资",
+        "理财",
+        "八卦",
+        "明星",
+        "旅游",
+        "机票",
+        "酒店",
+        "作业",
+        "论文",
+        "代写",
+        "自杀",
+        "自残",
+        "处方药",
+        "抑郁",
+        "诊断",
+        "急救",
+        "骨折",
+        "胸痛",
+    )
+    uncertain_keywords = (
+        "膝盖",
+        "腰",
+        "肩",
+        "疼",
+        "痛",
+        "受伤",
+        "康复训练",
+        "针灸",
+        "理疗",
+        "能不能练",
+    )
+
+    if any(keyword in normalized_question for keyword in out_of_scope_keywords):
+        return {"label": "out_of_scope", "reason": "问题明显超出健身训练与饮食支持范围。"}
+
+    has_in_scope_keyword = any(keyword in normalized_question for keyword in in_scope_keywords)
+    has_uncertain_keyword = any(keyword in normalized_question for keyword in uncertain_keywords)
+
+    if has_in_scope_keyword and not has_uncertain_keyword:
+        return {"label": "in_scope", "reason": "问题聚焦训练、饮食、恢复或补剂等支持范围。"}
+
+    if has_uncertain_keyword:
+        return {"label": "uncertain", "reason": "问题涉及疼痛或康复边界，需要结合具体程度再判断。"}
+
+    return {"label": "out_of_scope", "reason": "问题与当前支持的训练饮食场景关联较弱。"}
+
+
+def _build_out_of_scope_reply(*, question: str, scope_reason: str) -> dict[str, Any]:
+    reason_prefix = f"这次问题“{question}”暂时不在我能直接处理的范围内。" if question else "这个问题暂时不在我能直接处理的范围内。"
+    reason_suffix = f"原因是：{scope_reason}" if scope_reason else "原因是：它超出了当前健身助手的职责边界。"
+    answer = (
+        f"{reason_prefix}{reason_suffix}"
+        "我当前只支持训练、饮食、恢复、补剂、体重管理和轻度运动康复相关问题。"
+        "如果你愿意，我可以帮你把问题改写到这些范围内继续聊。"
+    )
+    tips = [
+        "比如你可以问：今天力量训练后怎么安排晚餐更稳妥？",
+        "比如你可以问：减脂期外卖怎么替换更容易控制热量？",
+        "比如你可以问：下背轻微不适时，今天训练该怎么做低风险调整？",
+    ]
+    return {"answer": answer, "tips": tips, "riskNote": ""}
 
 
 def _build_mock_rag_answer(context: dict[str, Any]) -> dict[str, Any]:

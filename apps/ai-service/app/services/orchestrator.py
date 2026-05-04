@@ -17,6 +17,7 @@ from app.models.schemas import (
 )
 from app.services.boundary import BoundaryPolicy
 from app.services.coaching import CoachStrategyService
+from app.services.domain_scope import DomainScopeService
 from app.services.llm import BaseLLMClient
 from app.services.prompting import PromptManager
 from app.services.rag import BasicRagService
@@ -34,6 +35,7 @@ class AIOrchestrator:
         safety_service: SafetyService,
         rule_engine: RuleEngineService,
         boundary_policy: BoundaryPolicy,
+        domain_scope_service: DomainScopeService,
         coaching_service: CoachStrategyService | None = None,
     ) -> None:
         self._llm_client = llm_client
@@ -42,6 +44,7 @@ class AIOrchestrator:
         self._safety_service = safety_service
         self._rule_engine = rule_engine
         self._boundary_policy = boundary_policy
+        self._domain_scope_service = domain_scope_service
         self._coaching_service = coaching_service or CoachStrategyService()
 
     async def explain_diet_plan(self, payload: DietPlanExplainRequest) -> ExplainResult:
@@ -189,6 +192,46 @@ class AIOrchestrator:
                 data=safety.model_dump(),
             )
 
+        scope_decision = await self._domain_scope_service.evaluate(
+            payload.question,
+            has_diet_plan=payload.diet_plan is not None,
+            has_training_plan=payload.training_plan is not None,
+        )
+        domain_scope_trace = TraceStep(
+            step="domain_scope_gate",
+            owner="service",
+            summary=f"判定为 {scope_decision.label}（来源：{scope_decision.source}），理由：{scope_decision.reason}",
+        )
+        if scope_decision.label != "in_scope":
+            content = await self._generate_json(
+                task_name="out_of_scope_reply",
+                context={
+                    "question": payload.question,
+                    "scope_reason": scope_decision.reason,
+                },
+            )
+            output_safety = self._safety_service.evaluate_text(content.get("answer", ""))
+            if output_safety.blocked:
+                raise AppError(
+                    code="AI_SAFETY_BLOCKED",
+                    message=output_safety.message,
+                    status_code=400,
+                    data=output_safety.model_dump(),
+                )
+
+            return RagAnswerPayload(
+                answer=content["answer"],
+                tips=content.get("tips", []),
+                risk_note=content.get("riskNote", safety.risk_note),
+                citations=[],
+                trace=[
+                    TraceStep(step="input_safety", owner="service", summary=safety.summary),
+                    domain_scope_trace,
+                    TraceStep(step="llm_generation", owner="llm", summary="基于越界场景生成软拒绝回答"),
+                    TraceStep(step="output_safety", owner="service", summary=output_safety.summary),
+                ],
+            )
+
         question_profile = self._coaching_service.classify(
             question=payload.question,
             has_diet_plan=payload.diet_plan is not None,
@@ -233,6 +276,7 @@ class AIOrchestrator:
 
         trace = [
             TraceStep(step="input_safety", owner="service", summary=safety.summary),
+            domain_scope_trace,
             TraceStep(
                 step="question_classification",
                 owner="service",

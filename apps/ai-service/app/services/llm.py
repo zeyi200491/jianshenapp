@@ -436,7 +436,7 @@ def _build_plan_relation(
 
     if intent == "diet_substitution" and diet_plan:
         protein_target = ((diet_plan.get("targets") or {}).get("protein_g")) or "当天"
-        return f"你现在是“{goal}”目标、且处在“{scene}”场景，今天更重要的是把蛋白和总热量大方向执行住，而不是纠结食材是否完美；蛋白目标可以先盯住约 {protein_target}g。"
+        return f"你当前的目标是“{goal}”、且处在“{scene}”场景，今天更重要的是把蛋白和总热量大方向执行住，而不是纠结食材是否完美；蛋白目标可以先盯住约 {protein_target}g。"
 
     if intent == "training_execution" and training_plan:
         return f"你今天这次训练是“{training_plan.get('title', '当前训练')}”，重点是保住主动作顺序和完成度，辅助动作可以后移或缩减。"

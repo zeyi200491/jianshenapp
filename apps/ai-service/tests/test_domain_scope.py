@@ -182,6 +182,21 @@ def test_domain_scope_service_blocks_clear_unrelated_question_without_llm() -> N
     assert llm_client.calls == []
 
 
+def test_domain_scope_service_allows_plan_linked_short_question_without_llm() -> None:
+    llm_client = _RecordingLLMClient([])
+    service = DomainScopeService(
+        llm_client=llm_client,
+        prompt_manager=_build_prompt_manager(),
+        scope_model="scope-model",
+    )
+
+    decision = asyncio.run(service.evaluate("今天没时间，能缩短吗？", has_training_plan=True))
+
+    assert decision.label == "in_scope"
+    assert decision.source == "rule"
+    assert llm_client.calls == []
+
+
 @pytest.mark.parametrize("model_label", ["in_scope", "out_of_scope", "uncertain"])
 def test_domain_scope_service_uses_scope_model_for_boundary_question(model_label: str) -> None:
     llm_client = _RecordingLLMClient(

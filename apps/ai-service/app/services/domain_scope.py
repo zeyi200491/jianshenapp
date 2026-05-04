@@ -37,8 +37,18 @@ class DomainScopeService:
         self._prompt_manager = prompt_manager
         self._scope_model = scope_model
 
-    async def evaluate(self, question: str) -> DomainScopeDecision:
-        rule_decision = _classify_by_rules(question)
+    async def evaluate(
+        self,
+        question: str,
+        *,
+        has_diet_plan: bool = False,
+        has_training_plan: bool = False,
+    ) -> DomainScopeDecision:
+        rule_decision = _classify_by_rules(
+            question,
+            has_diet_plan=has_diet_plan,
+            has_training_plan=has_training_plan,
+        )
         if rule_decision.label != "uncertain":
             return rule_decision
 
@@ -60,7 +70,12 @@ class DomainScopeService:
         )
 
 
-def _classify_by_rules(question: str) -> DomainScopeDecision:
+def _classify_by_rules(
+    question: str,
+    *,
+    has_diet_plan: bool = False,
+    has_training_plan: bool = False,
+) -> DomainScopeDecision:
     normalized_question = question.lower()
 
     high_risk_markers = (
@@ -178,10 +193,19 @@ def _classify_by_rules(question: str) -> DomainScopeDecision:
 
     has_boundary = any(marker in normalized_question for marker in boundary_markers)
     has_fitness = any(marker in normalized_question for marker in fitness_markers)
+    has_plan_context = has_diet_plan or has_training_plan
+
     if has_fitness and not has_boundary:
         return DomainScopeDecision(
             label="in_scope",
             reason="问题聚焦训练、饮食、恢复、补剂或体重管理等支持范围。",
+            source="rule",
+        )
+
+    if has_plan_context and not has_boundary:
+        return DomainScopeDecision(
+            label="in_scope",
+            reason="问题直接围绕已提供的训练或饮食计划展开，属于当前支持范围。",
             source="rule",
         )
 

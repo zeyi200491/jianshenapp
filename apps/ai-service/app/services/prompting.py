@@ -13,6 +13,7 @@ TASK_FILE_MAP = {
     "training_explanation": "training_explanation_task.txt",
     "plan_adjustment": "plan_adjustment_task.txt",
     "rag_answer": "rag_answer_task.txt",
+    "rag_answer_stream": "rag_answer_stream_task.txt",
 }
 
 

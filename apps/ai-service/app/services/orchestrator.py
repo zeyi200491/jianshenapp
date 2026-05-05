@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app.core.errors import AppError
@@ -22,6 +23,12 @@ from app.services.prompting import PromptManager
 from app.services.rag import BasicRagService
 from app.services.rule_engine import RuleEngineService
 from app.services.safety import SafetyService
+
+
+def _safe_risk_note(value: Any, fallback: str | None = "") -> str:
+    if isinstance(value, str):
+        return value
+    return fallback or ""
 
 
 class AIOrchestrator:
@@ -78,7 +85,7 @@ class AIOrchestrator:
         return ExplainResult(
             answer=content["answer"],
             tips=content.get("tips", []),
-            risk_note=content.get("riskNote", safety.risk_note),
+            risk_note=_safe_risk_note(content.get("riskNote"), safety.risk_note),
             citations=_citations_from_hits(hits),
             trace=[
                 TraceStep(step="input_safety", owner="service", summary=safety.summary),
@@ -122,7 +129,7 @@ class AIOrchestrator:
         return ExplainResult(
             answer=content["answer"],
             tips=content.get("tips", []),
-            risk_note=content.get("riskNote", safety.risk_note),
+            risk_note=_safe_risk_note(content.get("riskNote"), safety.risk_note),
             citations=_citations_from_hits(hits),
             trace=[
                 TraceStep(step="input_safety", owner="service", summary=safety.summary),
@@ -264,10 +271,108 @@ class AIOrchestrator:
         return RagAnswerPayload(
             answer=content["answer"],
             tips=content.get("tips", []),
-            risk_note=content.get("riskNote", safety.risk_note),
+            risk_note=_safe_risk_note(content.get("riskNote"), safety.risk_note),
             citations=_citations_from_hits(hits),
             trace=trace,
         )
+
+    async def rag_ask_stream(self, payload: RagAskRequest) -> AsyncIterator[dict[str, Any]]:
+        safety = self._safety_service.evaluate_text(payload.question)
+        if safety.blocked:
+            raise AppError(
+                code="AI_SAFETY_BLOCKED",
+                message=safety.message,
+                status_code=400,
+                data=safety.model_dump(),
+            )
+
+        question_profile = self._coaching_service.classify(
+            question=payload.question,
+            has_diet_plan=payload.diet_plan is not None,
+            has_training_plan=payload.training_plan is not None,
+        )
+        hits = self._rag_service.search(
+            payload.question,
+            top_k=payload.top_k,
+            intent=question_profile.intent.value,
+            user_profile=payload.user_profile,
+            diet_plan=payload.diet_plan,
+            training_plan=payload.training_plan,
+        )
+        answer_strategy = self._coaching_service.build_strategy(
+            question=payload.question,
+            profile=question_profile,
+            hits=hits,
+            has_diet_plan=payload.diet_plan is not None,
+            has_training_plan=payload.training_plan is not None,
+        )
+        trace = [
+            TraceStep(step="input_safety", owner="service", summary=safety.summary),
+            TraceStep(
+                step="question_classification",
+                owner="service",
+                summary=f"识别为 {question_profile.intent.value}，理由：{question_profile.rationale}",
+            ),
+            TraceStep(step="knowledge_retrieval", owner="service", summary=f"召回 {len(hits)} 条知识片段"),
+            TraceStep(
+                step="answer_strategy",
+                owner="service",
+                summary=f"采用 {answer_strategy.response_style} 回答策略",
+            ),
+        ]
+
+        answer_chunks: list[str] = []
+        async for chunk in self._generate_text_stream(
+            task_name="rag_answer_stream",
+            context={
+                "question": payload.question,
+                "user_profile": payload.user_profile.model_dump() if payload.user_profile else None,
+                "diet_plan": payload.diet_plan.model_dump() if payload.diet_plan else None,
+                "training_plan": payload.training_plan.model_dump() if payload.training_plan else None,
+                "knowledge_snippets": [hit.model_dump() for hit in hits],
+                "question_profile": question_profile.model_dump(),
+                "answer_strategy": answer_strategy.model_dump(),
+                "boundary": self._boundary_policy.describe(),
+            },
+        ):
+            if chunk:
+                answer_chunks.append(chunk)
+                yield {"event": "chunk", "data": {"content": chunk}}
+
+        answer = "".join(answer_chunks)
+        output_safety = self._safety_service.evaluate_text(answer)
+        if output_safety.blocked:
+            raise AppError(
+                code="AI_SAFETY_BLOCKED",
+                message=output_safety.message,
+                status_code=400,
+                data=output_safety.model_dump(),
+            )
+
+        used_fallback = answer_strategy.weak_evidence or "现有知识库里没有足够直接依据" in answer
+        if used_fallback:
+            trace.append(
+                TraceStep(
+                    step="fallback_notice",
+                    owner="service",
+                    summary="命中弱证据兜底，先给保守近似建议并提醒适用范围",
+                )
+            )
+        trace.extend(
+            [
+                TraceStep(step="llm_generation", owner="llm", summary="基于分类、检索和模板生成回答"),
+                TraceStep(step="output_safety", owner="service", summary=output_safety.summary),
+            ]
+        )
+
+        result = RagAnswerPayload(
+            answer=answer,
+            tips=[],
+            risk_note=_safe_risk_note(safety.risk_note),
+            citations=_citations_from_hits(hits),
+            trace=trace,
+        )
+        yield {"event": "done", "data": result.model_dump()}
 
     async def _generate_json(self, *, task_name: str, context: dict[str, Any]) -> dict[str, Any]:
         system_prompt, user_prompt = self._prompt_manager.render(task_name, context)
@@ -290,6 +395,15 @@ class AIOrchestrator:
             status_code=500,
             data={"taskName": task_name, "rawResponse": raw},
         )
+
+    async def _generate_text_stream(self, *, task_name: str, context: dict[str, Any]) -> AsyncIterator[str]:
+        system_prompt, user_prompt = self._prompt_manager.render(task_name, context)
+        async for chunk in self._llm_client.stream_complete(
+            task_name=task_name,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+        ):
+            yield chunk
 
 
 def _parse_json(raw: str) -> dict[str, Any] | None:

@@ -123,7 +123,7 @@ export const foodLibraryItemPatchSchema = foodLibraryItemSchema.partial().refine
 export function flattenZodErrors(error: z.ZodError) {
   return error.issues.reduce<Record<string, string>>((accumulator, issue) => {
     const path = issue.path.join(".");
-    accumulator[path] = issue.message;
+    accumulator[path] = accumulator[path] ? `${accumulator[path]}; ${issue.message}` : issue.message;
     return accumulator;
   }, {});
 }

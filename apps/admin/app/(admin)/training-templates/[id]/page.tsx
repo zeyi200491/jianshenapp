@@ -9,7 +9,7 @@ import { ErrorState, LoadingState } from "@/components/admin/resource-state";
 import { useApiResource } from "@/hooks/use-api-resource";
 import type { TrainingTemplate } from "@/lib/contracts";
 
-const splitLabelMap = { full_body: "全身", upper_lower: "上下肢", push_pull_legs: "推拉腿", rest: "休息" } as const;
+const splitLabelMap = { full_body: "全身", upper_lower: "上下肢", push_pull_legs: "推拉腿", cardio: "有氧", rest: "休息" } as const;
 const experienceLabelMap = { beginner: "新手", intermediate: "中级" } as const;
 
 export default function TrainingTemplateDetailPage() {

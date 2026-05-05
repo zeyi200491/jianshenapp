@@ -15,6 +15,16 @@ function isStateChangingRequest(method?: string) {
   return !["GET", "HEAD", "OPTIONS"].includes((method ?? "GET").toUpperCase());
 }
 
+function getCsrfToken(): string | null {
+  for (const segment of document.cookie.split(";")) {
+    const [name, ...rest] = segment.trim().split("=");
+    if (name === "campusfit_csrf_token") {
+      return decodeURIComponent(rest.join("="));
+    }
+  }
+  return null;
+}
+
 function getCookieValue(cookieHeader: string | null, name: string) {
   if (!cookieHeader) {
     return null;
@@ -54,7 +64,7 @@ export async function apiRequest<T>(input: string, init?: RequestInit): Promise<
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(isStateChangingRequest(init?.method) ? { "X-CampusFit-CSRF": "1" } : {}),
+      ...(isStateChangingRequest(init?.method) ? { "X-CampusFit-CSRF": getCsrfToken() ?? "" } : {}),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -74,7 +84,7 @@ export function fetchAdminApi(path: string, init?: RequestInit) {
     ...init,
     credentials: "include",
     headers: {
-      ...(isStateChangingRequest(init?.method) ? { "X-CampusFit-CSRF": "1" } : {}),
+      ...(isStateChangingRequest(init?.method) ? { "X-CampusFit-CSRF": getCsrfToken() ?? "" } : {}),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",

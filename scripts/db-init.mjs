@@ -1,6 +1,11 @@
 import { resolve } from 'node:path';
 
 import { loadProjectEnv } from './lib/env.mjs';
+import {
+  releaseWorkspaceApiProcesses,
+  resolveGeneratedPrismaClientPath,
+  runPrismaGenerateCommand,
+} from './lib/prisma-generate.mjs';
 import { ROOT_DIR } from './lib/project.mjs';
 import { runCommand } from './lib/process.mjs';
 
@@ -9,6 +14,10 @@ const commandEnv = {
   ...process.env,
   ...env,
 };
+
+const apiWorkdir = resolve(ROOT_DIR, 'apps/api');
+const schemaPath = resolve(apiWorkdir, 'prisma/schema.prisma');
+const generatedClientPath = resolveGeneratedPrismaClientPath(apiWorkdir);
 
 console.log('[CampusFit DB] 正在启动本机 PostgreSQL...');
 runCommand(process.execPath, ['scripts/local-postgres.mjs', 'ensure-db'], {
@@ -23,16 +32,22 @@ runCommand(process.execPath, ['scripts/local-schema.mjs'], {
 });
 
 console.log('[CampusFit DB] 正在生成 Prisma Client...');
-if (process.platform === 'win32') {
-  runCommand('cmd.exe', ['/d', '/s', '/c', 'npm.cmd run prisma:generate'], {
-    cwd: resolve(ROOT_DIR, 'apps/api'),
-    env: commandEnv,
-  });
+const prismaGenerateResult = runPrismaGenerateCommand({
+  cwd: apiWorkdir,
+  env: commandEnv,
+  platform: process.platform,
+  schemaPath,
+  generatedClientPath,
+  releaseLocks: () => releaseWorkspaceApiProcesses(),
+});
+
+if (prismaGenerateResult.status === 'skipped') {
+  console.log('[CampusFit DB] Prisma Client 已是最新，跳过重复生成。');
 } else {
-  runCommand('npm', ['run', 'prisma:generate'], {
-    cwd: resolve(ROOT_DIR, 'apps/api'),
-    env: commandEnv,
-  });
+  if (prismaGenerateResult.releasedPids.length > 0) {
+    console.log(`[CampusFit DB] 已释放 Prisma 锁进程：${prismaGenerateResult.releasedPids.join(', ')}。`);
+  }
+  console.log(`[CampusFit DB] Prisma Client 已生成（第 ${prismaGenerateResult.attempts} 次尝试成功）。`);
 }
 
 console.log('[CampusFit DB] 正在写入本机基础种子数据...');

@@ -7,7 +7,7 @@ import {
   createConversation,
   fetchToday,
   listConversationMessages,
-  sendConversationMessage,
+  streamConversationMessage,
   type ConversationContext,
   type ConversationMessage,
   type TodayPayload,
@@ -28,9 +28,9 @@ import { LiveStatusCard } from '@/components/web/live-status-card';
 import { describeUserFacingError } from '@/lib/user-facing-error';
 
 const starterPrompts = [
-  '今天训练后特别饿，晚餐怎么调整比较合适？',
+  '今天训练特别晚，晚餐怎么调整比较合适？',
   '今天训练没做完，明天需要补吗？',
-  '如果食堂没有合适蛋白质来源，我该怎么替换？',
+  '如果食堂没有合适蛋白来源，我该怎么替换？',
 ];
 
 const quickFollowUps = [
@@ -42,8 +42,8 @@ const quickFollowUps = [
 function normalizeMessage(error: unknown) {
   return describeUserFacingError(error, {
     whatHappened: '执行助手暂时没有准备好。',
-    nextStep: '稍后重试，或先回到今日页确认计划已经生成。',
-    dataStatus: '当前会话和今日行动项会保留在这台设备上。',
+    nextStep: '稍后再试，或先回到今日页确认计划已经生成。',
+    dataStatus: '当前会话和今日行动项会保留在这台设备中。',
   });
 }
 
@@ -66,7 +66,7 @@ function buildContext(payload: TodayPayload): ConversationContext {
 function validateQuestion(question: string) {
   const trimmed = question.trim();
   if (trimmed.length < 6) {
-    return '问题至少输入 6 个字，这样执行建议才会足够具体。';
+    return '问题至少输入 6 个字，这样建议才会足够具体。';
   }
   if (trimmed.length > 400) {
     return '问题请控制在 400 字以内，避免一次塞入太多目标。';
@@ -84,10 +84,9 @@ function buildActionItemDraft(message: ConversationMessage) {
     .split(/[。！？\n]/)
     .map((item) => item.trim())
     .find(Boolean);
-  const title = sentence ? sentence.slice(0, 24) : '跟进这条执行建议';
 
   return {
-    title,
+    title: sentence ? sentence.slice(0, 24) : '跟进这条执行建议',
     detail: message.content.slice(0, 120),
   };
 }
@@ -106,13 +105,11 @@ export default function AssistantPage() {
   const [activeConversationDate, setActiveConversationDate] = useState('');
   const [streamingMessageId, setStreamingMessageId] = useState('');
   const initializedRef = useRef(false);
-  const streamTimerRef = useRef<number | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
 
   function stopStreaming() {
-    if (streamTimerRef.current) {
-      window.clearInterval(streamTimerRef.current);
-      streamTimerRef.current = null;
-    }
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
     setStreamingMessageId('');
   }
 
@@ -155,7 +152,6 @@ export default function AssistantPage() {
       title: buildConversationTitle(payload),
       context: buildContext(payload),
     });
-
     setConversationId(conversation.id);
     setActiveConversationDate(payload.date);
     if (typeof window !== 'undefined') {
@@ -206,40 +202,13 @@ export default function AssistantPage() {
 
   useEffect(() => {
     void bootstrap();
-
     return () => {
       stopStreaming();
     };
   }, []);
 
-  function startStreamingAssistantMessage(message: ConversationMessage, payload: TodayPayload, targetConversationId: string) {
-    stopStreaming();
-    setStreamingMessageId(message.id);
-    setMessages((current) => [...current, { ...message, content: '' }]);
-
-    const chunks = message.content.match(/.{1,18}/gu) ?? [message.content];
-    let index = 0;
-
-    streamTimerRef.current = window.setInterval(() => {
-      index += 1;
-      const nextContent = chunks.slice(0, index).join('');
-      setMessages((current) => {
-        const nextMessages = current.map((item) =>
-          item.id === message.id ? { ...item, content: nextContent } : item,
-        );
-        if (index >= chunks.length) {
-          persistConversationSnapshot(payload, targetConversationId, nextMessages);
-        }
-        return nextMessages;
-      });
-
-      if (index >= chunks.length) {
-        stopStreaming();
-      }
-    }, 28);
-  }
-
   function handleCreateNewConversation() {
+    stopStreaming();
     initializedRef.current = false;
     setMessages([]);
     setConversationId('');
@@ -254,6 +223,7 @@ export default function AssistantPage() {
       return;
     }
 
+    stopStreaming();
     setLoading(true);
     setError('');
 
@@ -261,7 +231,7 @@ export default function AssistantPage() {
       const historyMessages = await loadMessages(targetConversationId, session.accessToken);
       setConversationId(targetConversationId);
       setActiveConversationDate(targetDate);
-      if (today && targetDate === today.date) {
+      if (today) {
         persistConversationSnapshot(today, targetConversationId, historyMessages);
       }
     } catch (historyError) {
@@ -275,10 +245,11 @@ export default function AssistantPage() {
     if (!today) {
       return;
     }
-
+    stopStreaming();
     initializedRef.current = false;
     setMessages([]);
     setConversationId('');
+    setActiveConversationDate('');
     void bootstrap();
   }
 
@@ -286,7 +257,6 @@ export default function AssistantPage() {
     if (!today) {
       return;
     }
-
     const draft = buildActionItemDraft(message);
     const nextItem = addAssistantActionItem(today.date, message.id, draft.title, draft.detail);
     setActionItems((current) => [nextItem, ...current]);
@@ -296,7 +266,6 @@ export default function AssistantPage() {
     if (!today) {
       return;
     }
-
     setActionItems(toggleAssistantActionItem(today.date, itemId));
   }
 
@@ -304,7 +273,6 @@ export default function AssistantPage() {
     if (!today) {
       return;
     }
-
     setActionItems(removeAssistantActionItem(today.date, itemId));
   }
 
@@ -317,11 +285,15 @@ export default function AssistantPage() {
       return;
     }
     if (!conversationId || !today) {
-      setError('发生了什么：会话还没有准备完成。\n现在怎么做：请稍等几秒，再发送问题。\n数据情况：当前已生成的会话不会丢失。');
+      setError(
+        '发生了什么：会话还没有准备完成。\n现在怎么做：请稍等几秒，再发送问题。\n数据情况：当前已生成的会话不会丢失。',
+      );
       return;
     }
     if (activeConversationDate && activeConversationDate !== today.date) {
-      setError('发生了什么：你正在查看历史会话。\n现在怎么做：先回到今天会话，再继续追问新的执行问题。\n数据情况：历史会话会继续保留。');
+      setError(
+        '发生了什么：你正在查看历史会话。\n现在怎么做：先回到今天会话，再继续追问新的执行问题。\n数据情况：历史会话会继续保留。',
+      );
       return;
     }
 
@@ -335,21 +307,83 @@ export default function AssistantPage() {
     setError('');
 
     startTransition(async () => {
+      const abortController = new AbortController();
+      let currentAssistantMessageId = '';
+      stopStreaming();
+      streamAbortRef.current = abortController;
+
       try {
-        const result = await sendConversationMessage(session.accessToken, conversationId, {
-          content,
-          context: buildContext(today),
-        });
-        setMessages((current) => [...current, result.userMessage]);
-        startStreamingAssistantMessage(result.assistantMessage, today, conversationId);
-        setQuestion('');
+        for await (const eventChunk of streamConversationMessage(
+          session.accessToken,
+          conversationId,
+          {
+            content,
+            context: buildContext(today),
+          },
+          abortController.signal,
+        )) {
+          if (eventChunk.type === 'start') {
+            currentAssistantMessageId = eventChunk.assistantMessageId;
+            setStreamingMessageId(eventChunk.assistantMessageId);
+            setMessages((current) => [
+              ...current,
+              eventChunk.userMessage,
+              {
+                id: eventChunk.assistantMessageId,
+                role: 'assistant',
+                content: '',
+                citations: [],
+                trace: [],
+                createdAt: new Date().toISOString(),
+              },
+            ]);
+            continue;
+          }
+
+          if (eventChunk.type === 'chunk') {
+            setMessages((current) =>
+              current.map((item) =>
+                item.id === eventChunk.assistantMessageId
+                  ? { ...item, content: `${item.content}${eventChunk.content}` }
+                  : item,
+              ),
+            );
+            continue;
+          }
+
+          if (eventChunk.type === 'done') {
+            setMessages((current) => {
+              const nextMessages = current.map((item) =>
+                item.id === eventChunk.assistantMessage.id ? eventChunk.assistantMessage : item,
+              );
+              persistConversationSnapshot(today, conversationId, nextMessages);
+              return nextMessages;
+            });
+            setQuestion('');
+            setStreamingMessageId('');
+            continue;
+          }
+
+          throw new ApiError(eventChunk.code, eventChunk.message, 502, null);
+        }
       } catch (sendError) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+        if (currentAssistantMessageId) {
+          setMessages((current) => current.filter((item) => item.id !== currentAssistantMessageId));
+        }
         if (sendError instanceof ApiError && sendError.status === 401) {
           clearStoredSession();
           router.replace('/login');
           return;
         }
         setError(normalizeMessage(sendError));
+      } finally {
+        if (streamAbortRef.current === abortController) {
+          streamAbortRef.current = null;
+        }
+        setStreamingMessageId('');
       }
     });
   }
@@ -358,7 +392,6 @@ export default function AssistantPage() {
     if (!today || !activeConversationDate || activeConversationDate === today.date) {
       return '';
     }
-
     return `正在查看 ${activeConversationDate} 的历史会话。`;
   }, [activeConversationDate, today]);
 
@@ -388,7 +421,7 @@ export default function AssistantPage() {
       {error ? <LiveStatusCard tone="error">{error}</LiveStatusCard> : null}
       {historyLabel ? <LiveStatusCard tone="loading">{historyLabel}</LiveStatusCard> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.12fr_0.88fr]">
         <DashboardCard>
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -414,6 +447,7 @@ export default function AssistantPage() {
               </button>
             </div>
           </div>
+
           <div className="mt-7 grid gap-4">
             {messages.length === 0 ? (
               <div className="rounded-[24px] bg-[#eef4f9] px-5 py-5 text-sm text-[#5d7288]">
@@ -451,7 +485,7 @@ export default function AssistantPage() {
                       加入今日行动项
                     </button>
                     {streamingMessageId === message.id ? (
-                      <span className="text-xs text-[#6e8396]">正在流式展开回答...</span>
+                      <span className="text-xs text-[#6e8396]">正在流式生成回答...</span>
                     ) : null}
                   </div>
                 ) : null}
@@ -469,6 +503,7 @@ export default function AssistantPage() {
               </div>
               <PanelTag tone="deep">{activeConversationDate === today?.date ? '今日会话' : '历史会话'}</PanelTag>
             </div>
+
             <div className="mt-6 rounded-[24px] bg-white px-5 py-5">
               <p className="text-sm font-semibold text-[#17324d]">快捷追问</p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -525,7 +560,9 @@ export default function AssistantPage() {
                 <article key={item.id} className="rounded-[24px] bg-[#eef4f9] px-5 py-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className={`text-sm font-semibold ${item.done ? 'text-[#6e8396] line-through' : 'text-[#17324d]'}`}>{item.title}</p>
+                      <p className={`text-sm font-semibold ${item.done ? 'text-[#6e8396] line-through' : 'text-[#17324d]'}`}>
+                        {item.title}
+                      </p>
                       <p className="mt-2 text-xs leading-6 text-[#5d7288]">{item.detail}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">

@@ -1,35 +1,14 @@
-export type ApiSuccessCode = "OK";
+import { type ApiSuccessCode, type ApiErrorCode, type ApiResponse, type MovementPattern, type RestRuleSource, type IntensityLevel, type WeekdayKey, type TrainingDayType, type TemplateStatus, type DietScene, type MealType, type TargetType, type SplitType, type TrainingExperience } from '@campusfit/shared';
 
-export type ApiErrorCode =
-  | "UNAUTHORIZED"
-  | "FORBIDDEN"
-  | "VALIDATION_ERROR"
-  | "NOT_FOUND"
-  | "CONFLICT"
-  | "INTERNAL_ERROR";
+export type { ApiSuccessCode, ApiErrorCode, ApiResponse, MovementPattern, RestRuleSource, IntensityLevel, WeekdayKey, TrainingDayType, TemplateStatus, DietScene, MealType, SplitType };
 
-export type ApiResponse<T> = {
-  code: ApiSuccessCode | ApiErrorCode;
-  message: string;
-  data: T | null;
-  requestId?: string;
-};
+export type GoalType = TargetType;
+export type ExperienceLevel = TrainingExperience;
 
-export type TemplateStatus = "draft" | "active" | "inactive";
-export type GoalType = "cut" | "maintain" | "bulk";
-export type DietScene = "canteen" | "dorm" | "home";
-export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-export type ExperienceLevel = "beginner" | "intermediate";
-export type SplitType = "full_body" | "upper_lower" | "push_pull_legs" | "rest";
-export type IntensityLevel = "low" | "medium" | "high";
 export type ProductStatus = "draft" | "active" | "inactive";
 export type FeedbackStatus = "open" | "reviewed" | "closed";
 export type FeedbackChannel = "checkin" | "ai" | "product" | "weekly_review";
 export type Sentiment = "positive" | "neutral" | "negative";
-export type MovementPattern = "compound" | "isolation" | "recovery";
-export type RestRuleSource = "system" | "manual";
-export type TrainingDayType = "training" | "rest";
-export type WeekdayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 export type FoodLibraryItemStatus = "active" | "inactive";
 export type FoodLibraryItemSceneTag = "canteen" | "cookable";
 export type FoodLibraryMealType = "breakfast" | "lunch" | "dinner";

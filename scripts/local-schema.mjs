@@ -60,6 +60,23 @@ CREATE TABLE IF NOT EXISTS weekly_reviews (
   UNIQUE (user_id, week_start_date)
 );
 
+CREATE TABLE IF NOT EXISTS weekly_review_action_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  weekly_review_id UUID REFERENCES weekly_reviews(id) ON DELETE SET NULL,
+  week_start_date DATE NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  source VARCHAR(32) NOT NULL DEFAULT 'system_generated',
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  sort_order INT NOT NULL DEFAULT 0,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS weekly_review_action_items_user_week_idx
+  ON weekly_review_action_items(user_id, week_start_date);
+
 CREATE TABLE IF NOT EXISTS meal_intake_overrides (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -110,6 +127,9 @@ ALTER TABLE daily_training_override_items
   ADD COLUMN IF NOT EXISTS rep_text VARCHAR(64),
   ADD COLUMN IF NOT EXISTS source_type VARCHAR(16) NOT NULL DEFAULT 'standard',
   ADD COLUMN IF NOT EXISTS raw_input TEXT;
+ALTER TABLE check_ins ALTER COLUMN energy_level DROP NOT NULL;
+ALTER TABLE check_ins ALTER COLUMN satiety_level DROP NOT NULL;
+ALTER TABLE check_ins ALTER COLUMN fatigue_level DROP NOT NULL;
 `;
 
 const client = new Client({

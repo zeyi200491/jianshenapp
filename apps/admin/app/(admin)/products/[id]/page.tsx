@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ export default function ProductDetailPage() {
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <section className="rounded-[32px] border border-black/8 bg-white/88 p-6 shadow-panel">
           <div className="overflow-hidden rounded-[28px]">
-            <img alt={data.name} src={data.coverImageUrl} className="aspect-[4/3] w-full object-cover" />
+            <Image alt={data.name} src={data.coverImageUrl} width={640} height={480} className="aspect-[4/3] w-full object-cover" unoptimized />
           </div>
           <div className="mt-6 flex flex-wrap gap-2">
             <Badge tone={data.status}>{data.status}</Badge>
@@ -60,7 +61,7 @@ export default function ProductDetailPage() {
               <dd className="mt-3 grid gap-3 md:grid-cols-2">
                 {data.detailImages.map((image) => (
                   <div key={image} className="overflow-hidden rounded-[20px]">
-                    <img alt={data.name} src={image} className="aspect-[4/3] w-full object-cover" />
+                    <Image alt={data.name} src={image} width={640} height={480} className="aspect-[4/3] w-full object-cover" unoptimized />
                   </div>
                 ))}
               </dd>

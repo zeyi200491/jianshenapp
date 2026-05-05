@@ -1,30 +1,97 @@
-﻿export class ApiError extends Error {
-  code: string;
-  status: number;
-  details: unknown;
+import { ApiError } from '@campusfit/shared';
+import type {
+  ApiEnvelope,
+  IntensityLevel,
+  MovementPattern,
+  RestRuleSource,
+  TrainingDayType,
+  TrainingFocus,
+  WeekdayKey,
+} from '@campusfit/shared';
 
-  constructor(code: string, message: string, status: number, details: unknown = null) {
-    super(message);
-    this.name = 'ApiError';
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-}
+export { ApiError };
+export type { IntensityLevel, MovementPattern, RestRuleSource, TrainingFocus } from '@campusfit/shared';
+export type {
+  ActiveTrainingSource,
+  CheckInPayload,
+  CheckInRecord,
+  Conversation,
+  ConversationContext,
+  ConversationMessage,
+  ConversationStreamEvent,
+  CurrentUserPayload,
+  DietPlanMealView,
+  GeneratedWeeklyReviewPayload,
+  LoginSession,
+  MacroNutrition,
+  MealFoodSearchResult,
+  OnboardingPayload,
+  TodayPayload,
+  TodayTrainingPlan,
+  TrainingTemplateDayPayload,
+  TrainingTemplateDetail,
+  TrainingTemplateImportPreview,
+  TrainingTemplateItemPayload,
+  TrainingTemplatePayload,
+  TrainingTemplatePreview,
+  TrainingTemplateWeekday,
+  UpdateProfilePayload,
+  WeeklyDietDay,
+  WeeklyDietMeal,
+  WeeklyReviewActionItem,
+  WeeklyReviewPayload,
+} from './api-types';
+import type {
+  ActiveTrainingSource,
+  CheckInPayload,
+  CheckInRecord,
+  Conversation,
+  ConversationContext,
+  ConversationMessage,
+  ConversationStreamEvent,
+  CurrentUserPayload,
+  DietPlanMealView,
+  GeneratedWeeklyReviewPayload,
+  LoginSession,
+  MacroNutrition,
+  MealFoodSearchResult,
+  OnboardingPayload,
+  TodayPayload,
+  TodayTrainingPlan,
+  TrainingTemplateDayPayload,
+  TrainingTemplateDetail,
+  TrainingTemplateImportPreview,
+  TrainingTemplateItemPayload,
+  TrainingTemplatePayload,
+  TrainingTemplatePreview,
+  TrainingTemplateWeekday,
+  UpdateProfilePayload,
+  WeeklyDietDay,
+  WeeklyDietMeal,
+  WeeklyReviewActionItem,
+  WeeklyReviewPayload,
+} from './api-types';
 
-type ApiEnvelope<T> = {
-  code: string;
-  message: string;
-  data: T;
-};
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://jianshenapp-api-production.up.railway.app/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3050/api/v1';
 const SESSION_STORAGE_KEY = 'campusfit-web-session';
 let refreshInFlight: Promise<LoginSession | null> | null = null;
 
 function isStateChangingRequest(method?: string) {
   return !['GET', 'HEAD', 'OPTIONS'].includes((method ?? 'GET').toUpperCase());
+}
+
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  for (const segment of document.cookie.split(';')) {
+    const [name, ...rest] = segment.trim().split('=');
+    if (name === 'campusfit_csrf_token') {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+  return null;
 }
 
 function readSessionFromStorage() {
@@ -104,14 +171,44 @@ async function refreshSessionInRequestLayer() {
   return refreshInFlight;
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}, token?: string, allowRefresh = true) {
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+async function requestJson<T>(path: string, init: RequestInit = {}, token?: string, allowRefresh = true): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase();
+
+  if (method === 'GET') {
+    const dedupKey = `${path}|${token ?? ''}`;
+    const pending = inflightRequests.get(dedupKey);
+    if (pending) {
+      return pending as Promise<T>;
+    }
+
+    const promise = executeRequest<T>(path, init, token, allowRefresh);
+    inflightRequests.set(dedupKey, promise);
+    try {
+      return await promise;
+    } finally {
+      inflightRequests.delete(dedupKey);
+    }
+  }
+
+  return executeRequest<T>(path, init, token, allowRefresh);
+}
+
+async function executeRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+  allowRefresh = true,
+): Promise<T> {
+  const stateChanging = isStateChangingRequest(init.method);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    cache: 'no-store',
+    ...(stateChanging ? { cache: 'no-store' as const } : {}),
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(isStateChangingRequest(init.method) ? { 'X-CampusFit-CSRF': '1' } : {}),
+      ...(stateChanging ? { 'X-CampusFit-CSRF': getCsrfToken() ?? '' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
     },
@@ -137,403 +234,6 @@ async function requestJson<T>(path: string, init: RequestInit = {}, token?: stri
 
   return payload.data;
 }
-
-export type TrainingFocus = 'push' | 'pull' | 'legs';
-export type MovementPattern = 'compound' | 'isolation' | 'recovery';
-export type RestRuleSource = 'system' | 'manual';
-export type IntensityLevel = 'low' | 'medium' | 'high';
-export type ActiveTrainingSource = 'system' | 'user_override' | 'template';
-export type PreferredTrainingSource = 'system' | 'template';
-export type TrainingTemplateStatus = 'active' | 'archived';
-export type TrainingTemplateWeekday =
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
-  | 'sunday';
-export type TrainingTemplateDayType = 'training' | 'rest';
-
-export type LoginSession = {
-  accessToken: string;
-  refreshToken: string;
-  user: {
-    id: string;
-    nickname: string;
-    avatarUrl: string | null;
-    hasCompletedOnboarding: boolean;
-  };
-};
-
-export type OnboardingPayload = {
-  gender: 'male' | 'female' | 'other';
-  birthYear: number;
-  heightCm: number;
-  currentWeightKg: number;
-  targetType: 'cut' | 'maintain' | 'bulk';
-  activityLevel: 'low' | 'light' | 'moderate' | 'high' | 'athlete';
-  trainingExperience: 'beginner' | 'intermediate';
-  trainingDaysPerWeek: number;
-  dietScene: 'canteen' | 'dorm' | 'home';
-  dietPreferences: string[];
-  dietRestrictions: string[];
-  supplementOptIn: boolean;
-};
-
-export type UpdateProfilePayload = Partial<OnboardingPayload>;
-
-export type CurrentUserPayload = {
-  id: string;
-  nickname: string;
-  avatarUrl: string | null;
-  status: string;
-  hasCompletedOnboarding: boolean;
-  profile: (OnboardingPayload & {
-    preferredTrainingSource: PreferredTrainingSource;
-    onboardingCompletedAt: string | null;
-  }) | null;
-};
-
-export type TrainingCycleStatus = {
-  configured: boolean;
-  startFocus: TrainingFocus | null;
-  currentFocus: TrainingFocus | null;
-  requiresSelection: boolean;
-  suggestedReset: boolean;
-  inactivityDays: number | null;
-  lastCompletedDate: string | null;
-  resetAt: string | null;
-};
-
-export type WeeklyDietIngredient = {
-  name: string;
-  unit: string;
-  amount: number;
-};
-
-export type WeeklyDietMeal = {
-  mealType: 'breakfast' | 'lunch' | 'dinner';
-  title: string;
-  description: string;
-  ingredients: WeeklyDietIngredient[];
-  nutrition: {
-    calories: number;
-    proteinG: number;
-    carbG: number;
-    fatG: number;
-  };
-  alternatives: string[];
-  guidance: string[];
-  prepTips: string[];
-};
-
-export type WeeklyDietDay = {
-  date: string;
-  weekday: string;
-  dayType: 'training' | 'rest';
-  dailyTargets: {
-    calories: number;
-    proteinG: number;
-    carbG: number;
-    fatG: number;
-  };
-  meals: {
-    breakfast: WeeklyDietMeal;
-    lunch: WeeklyDietMeal;
-    dinner: WeeklyDietMeal;
-  };
-};
-
-export type MacroNutrition = {
-  calories: number;
-  proteinG: number;
-  carbG: number;
-  fatG: number;
-};
-
-export type MealIntakeActual = {
-  mealType: 'breakfast' | 'lunch' | 'dinner';
-  foodCode: string;
-  foodName: string;
-  portionSize: 'small' | 'medium' | 'large';
-  title: string;
-  nutrition: MacroNutrition;
-} | null;
-
-export type DietPlanMealView = {
-  id: string;
-  mealType: 'breakfast' | 'lunch' | 'dinner';
-  title: string;
-  description: string;
-  target: string;
-  alternatives: string[];
-  notes: string[];
-  planned: {
-    id: string;
-    mealType: 'breakfast' | 'lunch' | 'dinner';
-    title: string;
-    description: string;
-    nutrition: MacroNutrition;
-    alternatives: string[];
-  };
-  actual: MealIntakeActual;
-  effective: {
-    mealType: 'breakfast' | 'lunch' | 'dinner';
-    title: string;
-    description: string;
-    nutrition: MacroNutrition;
-    source: 'planned' | 'actual';
-  };
-};
-
-export type MealFoodSearchResult = {
-  code: string;
-  name: string;
-  aliases: string[];
-  sceneTags: Array<'canteen' | 'cookable'>;
-  sceneLabels: string[];
-  suggestedMealTypes: Array<'breakfast' | 'lunch' | 'dinner'>;
-  nutritionPerMedium: MacroNutrition;
-  portions: string[];
-};
-
-export type TodayTrainingPlan = {
-  id: string;
-  title: string;
-  splitType: string;
-  durationMinutes: number;
-  intensityLevel: IntensityLevel;
-  notes: string;
-  items: Array<{
-    id: string;
-    name: string;
-    sets: number;
-    reps: string;
-    repText?: string;
-    sourceType?: 'standard' | 'free_text';
-    rawInput?: string | null;
-    restSeconds: number;
-    movementPattern: MovementPattern;
-    restRuleSource: RestRuleSource;
-    restHint: string;
-    notes: string[];
-  }>;
-};
-
-export type TodayPayload = {
-  date: string;
-  dailyPlanId: string;
-  summary: {
-    calorieTarget: number;
-    proteinTargetG: number;
-    carbTargetG: number;
-    fatTargetG: number;
-  };
-  effectiveDailyTotals: MacroNutrition;
-  dietPlan: {
-    id: string;
-    scene: string;
-    sceneDisplay: string;
-    summary: string;
-    meals: DietPlanMealView[];
-  } | null;
-  weeklyDietPlan: {
-    weekStartDate: string;
-    weekEndDate: string;
-    goalType: 'cut' | 'maintain' | 'bulk';
-    dietScene: 'canteen' | 'dorm' | 'home';
-    displayScene: 'canteen' | 'cookable';
-    summary: string;
-    days: WeeklyDietDay[];
-  };
-  trainingPlan: TodayTrainingPlan | null;
-  systemTrainingPlan: TodayTrainingPlan | null;
-  activeTrainingPlan: TodayTrainingPlan | null;
-  activeTrainingSource: ActiveTrainingSource;
-  trainingCycle: TrainingCycleStatus;
-  checkInStatus: {
-    hasCheckedIn: boolean;
-    dietCompletionRate: number | null;
-    trainingCompletionRate: number | null;
-  };
-  reviewHint: {
-    hasWeeklyReview: boolean;
-    latestWeekStartDate: string | null;
-  };
-};
-
-export type CheckInPayload = {
-  dailyPlanId: string;
-  checkinDate: string;
-  dietCompletionRate: number;
-  trainingCompletionRate: number;
-  waterIntakeMl?: number;
-  stepCount?: number;
-  weightKg?: number;
-  energyLevel?: number;
-  satietyLevel?: number;
-  fatigueLevel?: number;
-  note?: string;
-};
-
-export type CheckInRecord = CheckInPayload & {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type WeeklyReviewPayload = {
-  review: {
-    id: string;
-    weekStartDate: string;
-    weekEndDate: string;
-    planDays: number;
-    checkedInDays: number;
-    avgDietCompletionRate: number;
-    avgTrainingCompletionRate: number;
-    weightChangeKg: number;
-    highlights: string[];
-    risks: string[];
-    recommendations: string[];
-    narrativeText: string;
-  } | null;
-  actionItems: WeeklyReviewActionItem[];
-  emptyReason: string | null;
-};
-
-export type WeeklyReviewActionItem = {
-  id: string;
-  userId: string;
-  weeklyReviewId: string | null;
-  weekStartDate: string;
-  title: string;
-  source: 'system_generated' | 'manual';
-  status: 'pending' | 'completed';
-  sortOrder: number;
-  completedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type GeneratedWeeklyReviewPayload = NonNullable<WeeklyReviewPayload['review']> & {
-  actionItems: WeeklyReviewActionItem[];
-};
-
-export type ConversationContext = {
-  dailyPlanId?: string;
-  dietPlanId?: string;
-  trainingPlanId?: string;
-};
-
-export type TrainingTemplateItemPayload = {
-  exerciseCode: string;
-  exerciseName: string;
-  sets: number;
-  reps: string;
-  repText?: string;
-  sourceType?: 'standard' | 'free_text';
-  rawInput?: string | null;
-  restSeconds: number;
-  notes?: string;
-};
-
-export type TrainingTemplateDayPayload = {
-  weekday: TrainingTemplateWeekday;
-  dayType: TrainingTemplateDayType;
-  title: string;
-  splitType?: string | null;
-  durationMinutes?: number | null;
-  intensityLevel?: IntensityLevel | null;
-  notes?: string;
-  items: TrainingTemplateItemPayload[];
-};
-
-export type TrainingTemplatePayload = {
-  name: string;
-  status?: TrainingTemplateStatus;
-  isEnabled?: boolean;
-  isDefault?: boolean;
-  notes?: string;
-  days: TrainingTemplateDayPayload[];
-};
-
-export type TrainingTemplateDetail = {
-  id: string;
-  userId: string;
-  name: string;
-  status: TrainingTemplateStatus;
-  isEnabled: boolean;
-  isDefault: boolean;
-  notes: string;
-  days: Array<
-    TrainingTemplateDayPayload & {
-      id: string;
-      sortOrder?: number;
-      dayIndex?: number;
-      items: Array<TrainingTemplateItemPayload & { id: string; displayOrder?: number }>;
-    }
-  >;
-};
-
-export type TrainingTemplatePreview = {
-  templateId: string;
-  templateName: string;
-  date: string;
-  weekday: TrainingTemplateWeekday;
-  day: TrainingTemplateDetail['days'][number];
-} | null;
-
-export type TrainingTemplateImportPreview = {
-  previewToken: string;
-  summary: {
-    detectedDays: number;
-    successfulLines: number;
-    warningLines: number;
-    blockingLines: number;
-  };
-  parsedDays: Array<{
-    weekday: TrainingTemplateWeekday;
-    title: string;
-    dayType: TrainingTemplateDayType;
-    selectable: boolean;
-    warnings: string[];
-    items: Array<{
-      rawLine: string;
-      exerciseName: string;
-      matchedExerciseCode: string | null;
-      sets: number | null;
-      reps: string | null;
-      repText: string | null;
-      notes: string;
-      matchStatus: 'matched' | 'free_text' | 'warning' | 'invalid';
-    }>;
-  }>;
-  errors: Array<{
-    lineNumber: number;
-    weekday: TrainingTemplateWeekday | null;
-    rawLine: string;
-    message: string;
-    blocking: boolean;
-  }>;
-};
-
-export type Conversation = {
-  id: string;
-  title: string;
-  context: ConversationContext;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type ConversationMessage = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  citations: Array<Record<string, unknown>>;
-  trace: Array<Record<string, unknown>>;
-  createdAt: string;
-};
 
 export async function requestEmailCode(email: string) {
   return requestJson<{
@@ -915,4 +615,126 @@ export async function sendConversationMessage(
     },
     token,
   );
+}
+
+function parseSseFrame(frame: string) {
+  const lines = frame.split('\n');
+  const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim();
+  const data = lines
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trim())
+    .join('\n');
+
+  if (!event || !data) {
+    return null;
+  }
+
+  return { event, data };
+}
+
+async function* readSseEvents(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (!value) {
+        continue;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        const parsed = parseSseFrame(frame);
+        if (parsed) {
+          yield parsed;
+        }
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      const parsed = parseSseFrame(buffer);
+      if (parsed) {
+        yield parsed;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function* streamConversationMessage(
+  token: string,
+  conversationId: string,
+  payload: { content: string; context?: ConversationContext },
+  signal?: AbortSignal,
+): AsyncGenerator<ConversationStreamEvent> {
+  const response = await fetch(`${API_BASE_URL}/ai/conversations/${conversationId}/messages/stream`, {
+    method: 'POST',
+    credentials: 'include',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'X-CampusFit-CSRF': getCsrfToken() ?? '',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let payloadBody: ApiEnvelope<unknown> | null = null;
+    try {
+      payloadBody = (await response.json()) as ApiEnvelope<unknown>;
+    } catch {
+      throw new ApiError('INTERNAL_ERROR', '接口返回了无法解析的响应', response.status, null);
+    }
+    throw new ApiError(payloadBody.code, payloadBody.message, response.status, payloadBody.data);
+  }
+
+  if (!response.body) {
+    throw new ApiError('INTERNAL_ERROR', '流式响应为空', response.status, null);
+  }
+
+  for await (const frame of readSseEvents(response.body)) {
+    const data = JSON.parse(frame.data) as Record<string, unknown>;
+    if (frame.event === 'start') {
+      yield {
+        type: 'start',
+        conversationId: String(data.conversationId),
+        userMessage: data.userMessage as ConversationMessage,
+        assistantMessageId: String(data.assistantMessageId),
+      };
+      continue;
+    }
+    if (frame.event === 'chunk') {
+      yield {
+        type: 'chunk',
+        assistantMessageId: String(data.assistantMessageId),
+        content: String(data.content ?? ''),
+      };
+      continue;
+    }
+    if (frame.event === 'done') {
+      yield {
+        type: 'done',
+        conversationId: String(data.conversationId),
+        assistantMessage: data.assistantMessage as ConversationMessage,
+      };
+      continue;
+    }
+    if (frame.event === 'error') {
+      yield {
+        type: 'error',
+        code: String(data.code ?? 'AI_TIMEOUT'),
+        message: String(data.message ?? 'AI 服务返回异常'),
+      };
+    }
+  }
 }

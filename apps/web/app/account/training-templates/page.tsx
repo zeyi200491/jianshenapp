@@ -27,16 +27,9 @@ import { TrainingTemplateList } from '@/components/web/training-templates/traini
 import { buildDraftFromImportPreview } from '@/lib/training-template-import-draft';
 import {
   buildEmptyTrainingTemplateDraft,
-  DEFAULT_TRAINING_DURATION_MINUTES,
-  DEFAULT_TRAINING_INTENSITY_LEVEL,
-  DEFAULT_TRAINING_REST_SECONDS,
-  DEFAULT_TRAINING_SPLIT_TYPE,
   normalizeTrainingTemplateDraftForSave,
-  TRAINING_TEMPLATE_WEEKDAY_ORDER,
 } from '@/lib/training-template-draft';
 import { describeUserFacingError } from '@/lib/user-facing-error';
-
-type DraftItem = TrainingTemplateDraft['days'][number]['items'][number];
 
 const importExampleText = `周一 休息
 
@@ -281,39 +274,47 @@ export default function TrainingTemplatesPage() {
     setError('');
   }
 
-  async function handleSaveDraft() {
+  async function persistDraft(currentDraft: TrainingTemplateDraft) {
     const session = getStoredSession();
     if (!session) {
       router.replace('/login');
-      return;
+      return null;
     }
 
+    const validationMessage = validateDraft(currentDraft);
+    if (validationMessage) {
+      setError(validationMessage);
+      return null;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      const payload = toPayload(currentDraft);
+      const saved = currentDraft.id
+        ? await updateTrainingTemplate(session.accessToken, currentDraft.id, payload)
+        : await createTrainingTemplate(session.accessToken, payload);
+
+      await loadTemplates(saved.id);
+      return saved;
+    } catch (saveError) {
+      setError(normalizeError(saveError));
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveDraft() {
     if (!draft) {
       return;
     }
 
-    const validationMessage = validateDraft(draft);
-    if (validationMessage) {
-      setError(validationMessage);
-      return;
-    }
-
-    setSaving(true);
     setMessage('');
-    setError('');
-
-    try {
-      const payload = toPayload(draft);
-      const saved = draft.id
-        ? await updateTrainingTemplate(session.accessToken, draft.id, payload)
-        : await createTrainingTemplate(session.accessToken, payload);
-
-      await loadTemplates(saved.id);
+    const saved = await persistDraft(draft);
+    if (saved) {
       setMessage('训练模板已保存。');
-    } catch (saveError) {
-      setError(normalizeError(saveError));
-    } finally {
-      setSaving(false);
     }
   }
 

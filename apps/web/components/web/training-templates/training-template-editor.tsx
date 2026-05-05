@@ -9,6 +9,7 @@ import type {
 } from '@/lib/api';
 import { DashboardCard, PanelTag } from '@/components/web/dashboard-shell';
 import {
+  buildExerciseCodeFromName,
   DEFAULT_TRAINING_DURATION_MINUTES,
   DEFAULT_TRAINING_INTENSITY_LEVEL,
   DEFAULT_TRAINING_REST_SECONDS,
@@ -287,6 +288,7 @@ export function TrainingTemplateEditor({
                             updateItem(draft, dayIndex, itemIndex, (current) => ({
                               ...current,
                               exerciseName: event.target.value,
+                              exerciseCode: current.exerciseCode.trim() || buildExerciseCodeFromName(event.target.value),
                             })),
                           )
                         }

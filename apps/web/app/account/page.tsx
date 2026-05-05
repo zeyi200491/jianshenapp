@@ -200,7 +200,7 @@ export default function AccountPage() {
       {error ? <LiveStatusCard tone="error">{error}</LiveStatusCard> : null}
       {deletionMessage ? <LiveStatusCard tone="success">{deletionMessage}</LiveStatusCard> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[0.92fr_1.08fr]">
         <DashboardCard>
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -238,7 +238,7 @@ export default function AccountPage() {
         </DashboardCard>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.08fr_0.92fr]">
         <DashboardCard>
           <p className="text-lg font-semibold text-[#17324d]">帮助支持</p>
           <div className="mt-6 grid gap-3">

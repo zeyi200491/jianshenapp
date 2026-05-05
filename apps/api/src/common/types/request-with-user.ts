@@ -4,6 +4,7 @@ export interface CurrentUserPayload {
   userId: string;
   role?: string;
   tokenType?: string;
+  tokenId?: string;
 }
 
 export interface RequestWithUser extends Request {

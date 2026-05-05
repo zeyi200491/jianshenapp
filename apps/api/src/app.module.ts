@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AppController } from './app.controller';
@@ -24,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WeeklyReviewsModule } from './modules/weekly-reviews/weekly-reviews.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { getJwtSecret } from './config/security.config';
+import { shouldSkipThrottle } from './config/throttle.config';
 
 function resolveEnvFilePaths() {
   return [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')].filter((filePath) =>
@@ -41,6 +43,15 @@ function resolveEnvFilePaths() {
       global: true,
       secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },
+    }),
+    ThrottlerModule.forRoot({
+      skipIf: shouldSkipThrottle,
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 30,
+        },
+      ],
     }),
     PrismaModule,
     AuthModule,
@@ -60,6 +71,10 @@ function resolveEnvFilePaths() {
   ],
   controllers: [AppController],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

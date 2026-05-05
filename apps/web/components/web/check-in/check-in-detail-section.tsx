@@ -37,7 +37,7 @@ export function CheckInDetailSection({
 
   return (
     <>
-      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr]">
         <DashboardCard>
           <div className="flex items-center justify-between gap-4">
             <div className="text-right">
@@ -99,7 +99,7 @@ export function CheckInDetailSection({
         </DashboardCard>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.78fr_1.22fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[0.78fr_1.22fr]">
         <DashboardCard>
           <div className="grid gap-5">
             <SignalButtons label="精力" value={form.energyLevel} onChange={(next) => onUpdateField('energyLevel', next)} />

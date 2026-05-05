@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const apiOrigin = new URL(
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://jianshenapp-api-production.up.railway.app/api/v1",
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:3050/api/v1",
 ).origin;
 
 const securityHeaders = [
@@ -16,6 +16,9 @@ const securityHeaders = [
       "img-src 'self' data: blob:",
       "style-src 'self' 'unsafe-inline'",
       `connect-src 'self' ${apiOrigin}`,
+      "font-src 'self'",
+      "form-action 'self'",
+      "report-uri /api/csp-report",
     ].join("; "),
   },
   { key: "X-Frame-Options", value: "DENY" },
@@ -37,4 +40,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-

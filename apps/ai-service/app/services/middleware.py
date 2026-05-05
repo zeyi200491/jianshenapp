@@ -12,13 +12,36 @@ from starlette.responses import Response
 
 logger = logging.getLogger("audit")
 
+_SENSITIVE_FIELDS = frozenset({
+    "user_profile", "diet_plan", "training_plan", "question",
+    "knowledge_snippets", "answer_strategy", "adjusted_plan",
+    "answer", "tips", "content", "user_id",
+})
+
+
+def _redact_json_body(body_str: str) -> str:
+    if not body_str:
+        return body_str
+    try:
+        data = json.loads(body_str)
+        if isinstance(data, dict):
+            redacted = {
+                k: ("[REDACTED]" if k in _SENSITIVE_FIELDS else v)
+                for k, v in data.items()
+            }
+            return json.dumps(redacted, ensure_ascii=False)
+        return "[REDACTED]"
+    except (json.JSONDecodeError, TypeError):
+        if len(body_str) > 200:
+            return body_str[:200] + "..."
+        return body_str
+
 
 class AuditLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-Id", f"req_{uuid4().hex}")
         request.state.request_id = request_id
         started = time.perf_counter()
-        request_body = await request.body()
 
         try:
             response = await call_next(request)
@@ -35,8 +58,6 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                 "query": str(request.url.query),
                 "statusCode": response.status_code,
                 "elapsedMs": elapsed_ms,
-                "requestBody": _safe_decode(request_body),
-                "responseBody": _safe_decode(body),
             }
             logger.info(json.dumps(payload, ensure_ascii=False))
 
@@ -57,15 +78,10 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                         "requestId": request_id,
                         "method": request.method,
                         "path": request.url.path,
-                        "requestBody": _safe_decode(request_body),
-                        "error": str(exc),
+                        "error": "服务内部异常",
                     },
                     ensure_ascii=False,
                 )
             )
             raise
 
-
-def _safe_decode(data: bytes, limit: int = 4000) -> str:
-    text = data.decode("utf-8", errors="ignore")
-    return text[:limit]

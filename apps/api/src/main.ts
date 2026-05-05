@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AppExceptionFilter } from './common/filters/app-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -11,6 +12,11 @@ import { shouldEnableSwagger, validateApiSecurityConfig } from './config/securit
 async function bootstrap() {
   validateApiSecurityConfig();
   const app = await NestFactory.create(AppModule);
+
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
 
   app.enableCors({
     origin: resolveAllowedOrigins(),

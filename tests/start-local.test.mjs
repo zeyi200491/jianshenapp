@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -38,18 +38,43 @@ test('一键启动脚本覆盖 web、api 与 ai-service 的启动和健康检查
   assert.match(script, /\.tmp[\\/]+edge-local-profile/);
   assert.match(script, /Open-LocalUrl -Url \$webUrl/);
   assert.match(script, /Open-LocalUrl -Url \$docsUrl/);
+
   const releaseApiIndex = script.indexOf("Stop-ListeningProcess -Port $apiPort -ServiceName 'API'");
   const ensureDbIndex = script.lastIndexOf('Ensure-LocalDatabase');
   assert.ok(
     releaseApiIndex !== -1 && ensureDbIndex !== -1 && releaseApiIndex < ensureDbIndex,
     '一键启动脚本必须在执行 db:init 前先释放旧的 API 进程，避免 Prisma Client 在 Windows 下被 DLL 占用'
   );
+
+  assert.match(script, /Set-ProcessEnvValue -Key 'AI_SERVICE_AUTH_TOKEN' -Value \$aiServiceAuthToken/, '一键启动脚本必须为 API 与 AI 子进程注入 AI_SERVICE_AUTH_TOKEN');
+  assert.match(script, /Set-ProcessEnvValue -Key 'ADMIN_EMAIL' -Value \$adminEmail/, '一键启动脚本必须为 API 子进程注入 ADMIN_EMAIL');
+  assert.match(script, /Set-ProcessEnvValue -Key 'ADMIN_PASSWORD' -Value \$adminPassword/, '一键启动脚本必须为 API 子进程注入 ADMIN_PASSWORD');
+  assert.match(script, /Get-EnvValue -Key 'AI_SERVICE_AUTH_TOKEN' -Fallback/, '本地启动应为缺失的服务鉴权令牌提供开发兜底值');
+  assert.match(script, /Get-EnvValue -Key 'ADMIN_EMAIL' -Fallback/, '本地启动应为缺失的管理员邮箱提供开发兜底值');
+  assert.match(
+    script,
+    /if \(Get-ListeningProcessId -Port \$apiPort\)\s*\{\s*Stop-ListeningProcess -Port \$apiPort -ServiceName 'API'/,
+    '一键启动脚本必须在预检阶段显式释放旧 API 进程'
+  );
+  assert.match(
+    script,
+    /node dist\/apps\/api\/src\/main\.js|node dist\\apps\\api\\src\\main\.js/,
+    '一键启动脚本在完成 API build 后应直接启动编译产物，避免再次触发 npm prestart 导致健康检查超时'
+  );
+  assert.match(script, /set NODE_ENV=production && npm\.cmd run build/, 'Web 构建必须强制使用 production 模式，避免 Next.js 产物缺失');
+  assert.match(script, /set NODE_ENV=production && npm\.cmd run start/, 'Web 启动必须强制使用 production 模式，避免 next start 读取错误环境');
   assert.match(script, /\$rebuiltServices = \[System\.Collections\.Generic\.HashSet\[string\]\]::new\(\)/);
   assert.match(script, /\$rebuiltServices\.Contains\(\$ServiceName\)/);
   assert.match(script, /Rebuilt in current run, restarting to load latest artifacts\./);
-  assert.match(script, /NEXT_PUBLIC_API_BASE_URL/);
-  assert.match(script, /ConvertTo-CmdEnvPrefix/);
-  assert.match(script, /local-api-base\.txt/);
+  assert.match(script, /NEXT_PUBLIC_API_BASE_URL/, '一键启动脚本必须向 Web 子进程注入本地 API 地址');
+  assert.match(script, /ConvertTo-CmdEnvPrefix/, '一键启动脚本必须支持为 cmd 子进程拼接环境变量前缀');
+  assert.match(script, /local-api-base\.txt/, '一键启动脚本必须通过本地 API 地址指纹判断是否需要重建 Web');
+  assert.doesNotMatch(script, /campusfit_dev_secret|campusfit-dev-secret/, '本地启动脚本不应内置固定 JWT 开发密钥');
+  assert.doesNotMatch(script, /CampusFit123!/, '本地启动脚本不应内置固定管理员密码');
+  assert.match(script, /New-DevJwtSecret/, '缺失 JWT_SECRET 时应动态生成开发密钥');
+  assert.match(script, /New-DevServiceToken/, '缺失 AI_SERVICE_AUTH_TOKEN 时应动态生成服务鉴权令牌');
+  assert.match(script, /New-DevAdminPassword/, '缺失 ADMIN_PASSWORD 时应动态生成开发密码');
+  assert.match(script, /if \(\$aiServiceAuthToken -eq \$jwtSecret\)/, 'AI_SERVICE_AUTH_TOKEN 不应与 JWT_SECRET 共用同一个值');
 });
 
 test('Edge 独立 profile 路径带引号，避免项目路径含空格时被拆成错误标签页', () => {
@@ -62,4 +87,27 @@ test('Edge 独立 profile 路径带引号，避免项目路径含空格时被拆
     /--user-data-dir=`"\$edgeProfileDir`"/,
     'Edge profile 路径未加引号，路径含空格时会被 Edge 拆成错误页面参数'
   );
+});
+
+test('一键启动脚本会在 AI 相关源码或 .env 更新后自动重启 AI 服务', () => {
+  const scriptPath = resolve(rootDirectory, 'scripts/start-local.ps1');
+  const script = stripBom(readFileSync(scriptPath, 'utf8'));
+
+  assert.match(script, /\$envFile = Join-Path \$root '\.env'/, '脚本必须显式跟踪根目录 .env 的修改时间');
+  assert.match(script, /\[string\[\]\]\$WatchFilePaths/, '启动函数必须支持传入监控文件列表');
+  assert.match(script, /Start-ManagedService -ServiceName 'AI'[\s\S]*-WatchFilePaths @\(\$envFile, \$aiWorkdir\)/, 'AI 服务必须监控 .env 和 ai-service 源码目录');
+  assert.match(script, /Detected newer watched files, restarting to load latest changes\./, '检测到 AI 源码或配置更新后必须重启服务');
+  assert.match(script, /Get-ListeningProcessStartTimeUtc -Port \$Port/, '判断是否需要重启时必须读取当前监听进程的启动时间');
+});
+
+test('一键启动脚本会在 Web 构建产物或 .env 更新后自动重启 Web 服务', () => {
+  const scriptPath = resolve(rootDirectory, 'scripts/start-local.ps1');
+  const script = stripBom(readFileSync(scriptPath, 'utf8'));
+
+  assert.match(script, /Start-ManagedService[\s\S]*-ServiceName 'Web'/, 'Web 启动必须通过统一的托管服务函数拉起');
+  assert.match(script, /-WatchFilePaths @\(/, 'Web 启动必须传入文件监控路径');
+  assert.match(script, /Join-Path \$webWorkdir '\.next\/BUILD_ID'/, 'Web 启动必须监控 BUILD_ID 产物');
+  assert.match(script, /Join-Path \$webWorkdir '\.next\/local-api-base\.txt'/, 'Web 启动必须监控本地 API 地址指纹');
+  assert.match(script, /\$latestWatchUtc = Get-FileWatchUtc -Paths \$WatchFilePaths/, 'Web 服务必须基于监控文件时间决定是否重启');
+  assert.match(script, /Start-ManagedService[\s\S]*-ServiceName 'Web'[\s\S]*-StartupRetries 90/, 'Web 启动应放宽健康检查等待时间，避免 Next.js 生产服务器冷启动误报超时');
 });

@@ -1,5 +1,5 @@
 [build]
-command = "cd apps/web && npm run build"
+command = "pnpm --filter @campusfit/web... build"
 publish = "apps/web/.next"
 
 [build.environment]

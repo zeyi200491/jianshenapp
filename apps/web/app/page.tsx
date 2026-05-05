@@ -24,7 +24,7 @@ const overviewStates = getOverviewStates();
 export default function LandingPage() {
   return (
     <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-[1480px] flex-col gap-10 px-5 py-6 sm:px-8 lg:px-10 lg:py-10">
-      <section className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr] xl:items-end">
+      <section className="grid gap-8 lg:grid-cols-2 lg:items-end xl:grid-cols-[1.15fr_0.85fr] xl:items-end">
         <div className="rounded-[40px] bg-[linear-gradient(135deg,#0e3d62,#0f7ea5_55%,#64b9eb)] px-8 py-10 text-white shadow-[0_32px_90px_rgba(15,126,165,0.24)] sm:px-10 sm:py-12">
           <SectionEyebrow>Open Dashboard</SectionEyebrow>
           <h1 className="mt-4 max-w-4xl text-[48px] font-semibold leading-[0.95] sm:text-[72px]">训练与饮食仪表盘</h1>
@@ -83,7 +83,7 @@ export default function LandingPage() {
         </DashboardCard>
       </section>
 
-      <section className="grid gap-8 xl:grid-cols-[0.92fr_1.08fr]">
+      <section className="grid gap-8 lg:grid-cols-2 xl:grid-cols-[0.92fr_1.08fr]">
         <DashboardCard className="bg-[#ecf5fb] p-7 sm:p-8">
           <div className="flex items-center justify-between gap-4">
             <div>

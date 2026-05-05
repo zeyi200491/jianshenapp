@@ -93,7 +93,7 @@ export default function StatusPage() {
       {error ? <LiveStatusCard tone="error">{error}</LiveStatusCard> : null}
       {actionMessage ? <LiveStatusCard tone="success">{actionMessage}</LiveStatusCard> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.18fr_0.82fr]">
         <MealPlanSection
           payload={payload}
           mealTypeLabels={mealTypeLabels}

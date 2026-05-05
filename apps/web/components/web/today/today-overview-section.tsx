@@ -33,7 +33,7 @@ export function TodayOverviewSection({
   trainingCompletionRate,
 }: TodayOverviewSectionProps) {
   return (
-    <section className="grid gap-6 xl:grid-cols-[1.28fr_0.72fr]">
+    <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.28fr_0.72fr]">
       <DashboardCard className="p-8">
         <div className="flex items-start justify-between gap-4">
           <div>

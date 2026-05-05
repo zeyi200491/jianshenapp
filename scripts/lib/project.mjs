@@ -7,12 +7,23 @@ const CURRENT_DIR = dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = resolve(CURRENT_DIR, '..', '..');
 
 const IGNORED_DIR_NAMES = new Set([
+  '.codex',
+  '.codex-output',
   '.git',
+  '.local',
+  '.logs',
   '.next',
+  '.npm-cache',
+  '.playwright-cli',
+  '.playwright-mcp',
+  '.pnpm-store',
+  '.tmp',
   '.turbo',
+  '.worktrees',
   'coverage',
   'dist',
-  'node_modules'
+  'node_modules',
+  'output'
 ]);
 
 const IGNORED_DIR_PREFIXES = ['pytest-cache-files-'];

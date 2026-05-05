@@ -209,8 +209,10 @@ export default function OnboardingPage() {
         const result = await submitOnboarding(session.accessToken, form);
         clearOnboardingDraft();
         setStoredSessionOnboardingStatus(true);
-        setSuccessHint(`建档完成，已生成 ${result.generatedPlanDate} 的计划。`);
-        router.replace('/today');
+        setSuccessHint(`建档完成，已生成 ${result.generatedPlanDate} 的计划。即将跳转到今日执行...`);
+        setTimeout(() => {
+          router.replace('/today');
+        }, 2000);
       } catch (submitError) {
         setError(normalizeMessage(submitError));
       }
@@ -222,7 +224,7 @@ export default function OnboardingPage() {
 
   return (
     <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-[1480px] flex-col gap-8 px-5 py-6 sm:px-8 lg:px-10 lg:py-10">
-      <section className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[0.88fr_1.12fr]">
         <DashboardCard className="bg-[linear-gradient(155deg,#0e3d62,#0f7ea5_58%,#63b9ec)] p-8 text-white shadow-[0_30px_80px_rgba(15,126,165,0.24)] sm:p-10">
           <SectionEyebrow>Onboarding</SectionEyebrow>
           <h1 className="mt-4 text-[48px] font-semibold leading-[0.95] sm:text-[64px]">建立你的训练档案</h1>

@@ -142,7 +142,7 @@ export function MealPlanSection({
             ) : null}
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr]">
             <DashboardCard>
               <div className="flex items-center justify-between">
                 <h3 className="text-[28px] font-semibold text-[#17324d]">替换方案</h3>

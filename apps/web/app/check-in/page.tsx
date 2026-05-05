@@ -84,7 +84,7 @@ export default function CheckInPage() {
       sidebarHint="今天还没开始？"
       primaryCta={{ label: '完成今日打卡', href: '/check-in' }}
       header={
-        <section className="grid gap-6 xl:grid-cols-[1fr_0.42fr] xl:items-start">
+        <section className="grid gap-6 lg:grid-cols-[1fr_0.42fr] xl:grid-cols-[1fr_0.42fr] xl:items-start">
           <div>
             <SectionEyebrow>Daily Checklist</SectionEyebrow>
             <h1 className="mt-3 text-[52px] font-semibold leading-none text-[#1b3042] sm:text-[64px]">每日打卡</h1>

@@ -63,6 +63,7 @@ export class MockPrismaStore {
   private readonly aiConversations: any[] = [];
   private readonly aiMessages: any[] = [];
   private readonly dataDeletionRequests: any[] = [];
+  private readonly revokedTokens: any[] = [];
 
   constructor() {
     this.seedProducts();
@@ -124,6 +125,32 @@ export class MockPrismaStore {
         ...account,
         user: this.attachUserIncludes(user, args.include.user.include),
       };
+    },
+  };
+
+  readonly revokedToken = {
+    findUnique: async (args: any) => {
+      const token = this.revokedTokens.find((item) => item.tokenId === args.where.tokenId) ?? null;
+      return token ? { ...token } : null;
+    },
+    upsert: async (args: any) => {
+      const index = this.revokedTokens.findIndex((item) => item.tokenId === args.where.tokenId);
+      if (index >= 0) {
+        const updated = {
+          ...this.revokedTokens[index],
+          ...args.update,
+        };
+        this.revokedTokens[index] = updated;
+        return { ...updated };
+      }
+
+      const created = {
+        id: randomUUID(),
+        revokedAt: new Date(),
+        ...args.create,
+      };
+      this.revokedTokens.push(created);
+      return { ...created };
     },
   };
 

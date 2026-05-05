@@ -73,6 +73,7 @@ function main() {
     'apps/web/lib/onboarding-draft.ts',
     'apps/web/lib/assistant-history.ts',
     'apps/web/lib/user-facing-error.ts',
+    'apps/web/lib/training-template-draft.ts',
     'apps/web/lib/today-dashboard-view.ts',
     'apps/web/lib/diet-plan-view.ts',
     'apps/web/lib/check-in-view.ts',
@@ -90,12 +91,23 @@ function main() {
 
   const authSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/auth.ts'), 'utf8');
   expectIncludes(authSource, 'setStoredSessionOnboardingStatus', 'Auth helpers should expose onboarding status sync');
+  expectIncludes(authSource, 'accessToken: parsed\\.accessToken', 'Stored web sessions should recover the persisted access token');
+  expectIncludes(authSource, 'refreshToken: parsed\\.refreshToken', 'Stored web sessions should recover the persisted refresh token');
+  expectIncludes(authSource, 'accessToken: session\\.accessToken', 'Stored web sessions should persist the access token');
+  expectIncludes(authSource, 'refreshToken: session\\.refreshToken', 'Stored web sessions should persist the refresh token');
+  expectNotIncludes(authSource, "accessToken:\\s*''", 'Stored web sessions should not blank out the access token after reload');
+  expectNotIncludes(authSource, "refreshToken:\\s*''", 'Stored web sessions should not blank out the refresh token after reload');
   expectNotIncludes(authSource, 'localStorage', 'Web auth must not persist tokens in localStorage');
   expectNotIncludes(authSource, 'SESSION_KEY', 'Web auth must not keep browser token-storage keys');
 
   const webApiSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/api.ts'), 'utf8');
+  const webApiTypesSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/api-types.ts'), 'utf8');
   expectIncludes(webApiSource, 'X-CampusFit-CSRF', 'Web API client should send a CSRF marker on cookie-authenticated mutations');
   expectIncludes(webApiSource, 'isStateChangingRequest', 'Web API client should only add the CSRF marker to state-changing requests');
+
+  const manifestSource = readFileSync(resolve(rootDirectory, 'apps/web/public/manifest.json'), 'utf8');
+  expectNotIncludes(manifestSource, 'icon-192\\.png', 'Web manifest should not reference a missing 192px icon asset');
+  expectNotIncludes(manifestSource, 'icon-512\\.png', 'Web manifest should not reference a missing 512px icon asset');
 
   const webNextConfigSource = readFileSync(resolve(rootDirectory, 'apps/web/next.config.ts'), 'utf8');
   expectIncludes(webNextConfigSource, 'Content-Security-Policy', 'Web app should emit a baseline CSP response header');
@@ -245,7 +257,7 @@ function main() {
     'utf8',
   );
   expectIncludes(
-    webApiSource,
+    webApiTypesSource,
     "export type ActiveTrainingSource = 'system' \\| 'user_override' \\| 'template';",
     'Web API types should allow template as an active training source',
   );
@@ -321,6 +333,10 @@ function main() {
     resolve(rootDirectory, 'apps/web/components/web/training-templates/training-template-editor.tsx'),
     'utf8',
   );
+  const trainingTemplateDraftSource = readFileSync(
+    resolve(rootDirectory, 'apps/web/lib/training-template-draft.ts'),
+    'utf8',
+  );
   const trainingTemplateImportDrawerSource = readFileSync(
     resolve(rootDirectory, 'apps/web/components/web/training-templates/training-template-import-drawer.tsx'),
     'utf8',
@@ -353,6 +369,7 @@ function main() {
     'applyTrainingTemplateImport',
     'Training template page should stop applying imported weekdays directly into saved templates',
   );
+  expectIncludes(trainingTemplatePageSource, 'normalizeTrainingTemplateDraftForSave', 'Training template page should normalize internal-only fields before save');
   expectIncludes(trainingTemplateListSource, '我的模板', 'Training template list should expose the template list title');
   expectIncludes(trainingTemplateListSource, 'today 默认来源', 'Training template list should expose the enable-for-today action');
   expectIncludes(trainingTemplateEditorSource, '周模板编辑器', 'Training template editor should expose the weekly editor title');
@@ -388,6 +405,12 @@ function main() {
     '确认覆盖',
     'Training template import drawer should stop framing import as direct overwrite',
   );
+  expectIncludes(trainingTemplateEditorSource, 'buildExerciseCodeFromName', 'Training template editor should auto-generate internal exercise codes from the action name');
+  expectNotIncludes(trainingTemplateEditorSource, 'importDisabled', 'Training template editor should not hard-disable the import entry for unsaved drafts');
+  expectNotIncludes(trainingTemplateEditorSource, "value=\\{day\\.durationMinutes \\?\\? ''\\}", 'Training template editor should not render a manual duration input');
+  expectNotIncludes(trainingTemplateEditorSource, 'value=\\{item\\.exerciseCode\\}', 'Training template editor should not render a manual exercise-code input');
+  expectIncludes(trainingTemplateDraftSource, 'buildExerciseCodeFromName', 'Training template draft helpers should expose exercise-code generation');
+  expectIncludes(trainingTemplateDraftSource, 'normalizeTrainingTemplateDraftForSave', 'Training template draft helpers should normalize hidden template fields before save');
   expectIncludes(trainingTemplateImportDrawerSource, '示例格式', 'Training template import drawer should expose an example format helper');
 
   const statusSource = readFileSync(resolve(rootDirectory, 'apps/web/app/status/page.tsx'), 'utf8');
@@ -521,6 +544,10 @@ function main() {
   expectIncludes(assistantSource, 'saveAssistantConversationSnapshot', 'Assistant page should persist conversation history snapshots');
   expectIncludes(assistantSource, 'toggleAssistantActionItem', 'Assistant page should persist action-item completion state');
   expectIncludes(assistantSource, 'streamingMessageId', 'Assistant page should progressively reveal assistant replies');
+  expectIncludes(assistantSource, 'streamConversationMessage', 'Assistant page should use the backend streaming client instead of waiting for a full reply');
+  expectNotIncludes(assistantSource, 'startStreamingAssistantMessage', 'Assistant page should not fake streaming in the browser with a local timer');
+  expectNotIncludes(assistantSource, 'streamTimerRef', 'Assistant page should not keep the old timer-based fake streaming state');
+  expectNotIncludes(assistantSource, 'window\\.setInterval', 'Assistant page should not simulate token streaming with setInterval');
   expectIncludes(assistantSource, 'setStoredSessionOnboardingStatus\\(false\\)', 'Assistant page should sync onboarding status when backend requires onboarding');
   expectIncludes(assistantSource, 'LiveStatusCard', 'Assistant page should use the shared live-status card for async feedback');
   expectIncludes(assistantSource, 'name="question"', 'Assistant page should give the question field a stable name');

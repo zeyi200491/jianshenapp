@@ -103,7 +103,7 @@ export default function LoginPage() {
   return (
     <main id="main-content" tabIndex={-1} className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-[1450px] gap-8 px-5 py-6 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10 lg:py-10">
       <DashboardCard className="bg-[linear-gradient(160deg,#0e3d62,#0f7ea5_58%,#63b9ec)] p-8 text-white shadow-[0_30px_80px_rgba(15,126,165,0.24)] sm:p-10">
-        <SectionEyebrow>Email Access</SectionEyebrow>
+        <SectionEyebrow>邮箱入口</SectionEyebrow>
         <h1 className="mt-4 text-[48px] font-semibold leading-[0.95] sm:text-[64px]">邮箱登录</h1>
         <p className="mt-6 max-w-xl text-lg leading-9 text-white/84">
           这里是进入{APP_BRAND_NAME}的唯一入口。登录成功后，已建档用户直接进入今日页，未建档用户进入档案建立流程。
@@ -119,7 +119,7 @@ export default function LoginPage() {
       <DashboardCard className="p-8 sm:p-10">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <SectionEyebrow>Account Entry</SectionEyebrow>
+            <SectionEyebrow>进入账号</SectionEyebrow>
             <h2 className="mt-4 text-[40px] font-semibold text-[#17324d]">输入邮箱，拿到验证码后立即进入</h2>
           </div>
           <PanelTag tone="deep">{APP_BRAND_NAME}</PanelTag>
@@ -137,10 +137,12 @@ export default function LoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
+              aria-describedby="email-error"
+              aria-invalid={!emailValid && email.trim().length > 0}
               className="rounded-[22px] border border-[#d8e5ee] bg-[#f8fbfe] px-4 py-4 outline-none transition focus:border-[#0f7ea5]"
             />
           </label>
-          {!emailValid && email.trim().length > 0 ? <p className="text-sm text-[#a34d47]">邮箱格式不正确。</p> : null}
+          {!emailValid && email.trim().length > 0 ? <p id="email-error" role="alert" className="text-sm text-[#a34d47]">邮箱格式不正确。</p> : null}
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <label className="grid gap-2 text-sm text-[#5d7288]">

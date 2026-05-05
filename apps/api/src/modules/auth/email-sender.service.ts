@@ -48,7 +48,7 @@ export class EmailSenderService {
   async sendOtpEmail(payload: SendOtpEmailPayload) {
     switch (this.provider) {
       case 'mock':
-        this.logger.log(`开发模式验证码：${payload.email} -> ${payload.code}`);
+        this.logger.log(`开发模式验证码已发送：${payload.email}`);
         return;
       case 'smtp':
         await this.sendBySmtp(payload);

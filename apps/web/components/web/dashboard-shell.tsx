@@ -424,6 +424,14 @@ export function DashboardShell({ currentPath, header, children, sidebarHint = '�
               <TopIcon type="spark" />
               AI 助手
             </Link>
+            <button
+              type="button"
+              aria-label="通知中心"
+              title="通知中心"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/90 bg-white text-[#425f7b] shadow-[0_12px_24px_rgba(21,74,112,0.08)] transition hover:border-[#c9dfed] hover:text-[#0f7ea5]"
+            >
+              <TopIcon type="bell" />
+            </button>
             <Link
               href="/account"
               aria-label="个人中心"
@@ -522,4 +530,3 @@ export function PanelTag({ children, tone = 'soft' }: { children: ReactNode; ton
     </span>
   );
 }
-

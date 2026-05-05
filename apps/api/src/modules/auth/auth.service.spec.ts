@@ -21,6 +21,7 @@ describe('AuthService', () => {
 
   function createService() {
     const repository = {
+      findUserById: jest.fn(),
       findAccountByOpenId: jest.fn(),
       createUserWithAccount: jest.fn(),
       createRevokedToken: jest.fn().mockResolvedValue(undefined),
@@ -211,6 +212,42 @@ describe('AuthService', () => {
     }
 
     await expect(service.loginWithEmailOtp('student@example.com', '000000')).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+
+  it('refreshes a normal user session from a valid refresh token', async () => {
+    const { service, repository, jwtService } = createService();
+    repository.findUserById.mockResolvedValue({
+      id: 'user-1',
+      nickname: 'CampusFit 用户',
+      avatarUrl: null,
+      profile: {
+        onboardingCompletedAt: new Date('2026-05-04T00:00:00.000Z'),
+      },
+    });
+    jwtService.verifyAsync.mockResolvedValue({
+      sub: 'user-1',
+      type: 'refresh',
+    });
+
+    const session = await service.refreshSession('refresh-token');
+
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('refresh-token');
+    expect(repository.findUserById).toHaveBeenCalledWith('user-1');
+    expect(session.accessToken).toBe('access-token');
+    expect(session.refreshToken).toBe('refresh-token');
+    expect(session.user.hasCompletedOnboarding).toBe(true);
+  });
+
+  it('rejects refresh tokens with the wrong type', async () => {
+    const { service, jwtService } = createService();
+    jwtService.verifyAsync.mockResolvedValue({
+      sub: 'user-1',
+      type: 'access',
+    });
+
+    await expect(service.refreshSession('wrong-token')).rejects.toMatchObject({
       code: 'UNAUTHORIZED',
     });
   });

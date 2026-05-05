@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { parseDateOnly, toDateOnlyString } from '../../common/utils/date.util';
 import { AppException } from '../../common/utils/app.exception';
 import { serializeValue } from '../../common/utils/serialize.util';
+import { ProfilesService } from '../profiles/profiles.service';
 import {
   TEMPLATE_DAY_TYPES,
   TEMPLATE_INTENSITY_LEVELS,
@@ -69,6 +70,7 @@ export class TrainingTemplatesService {
   constructor(
     private readonly repository: TrainingTemplatesRepository,
     private readonly previewStore: TrainingTemplateImportPreviewStore,
+    private readonly profilesService: ProfilesService,
   ) {}
 
   async list(userId: string) {
@@ -111,7 +113,9 @@ export class TrainingTemplatesService {
       throw new AppException('VALIDATION_ERROR', '只有启用状态的模板才能设为 today 来源。', 400);
     }
 
-    return serializeValue(await this.repository.setEnabledTemplate(userId, templateId));
+    const template = await this.repository.setEnabledTemplate(userId, templateId);
+    await this.profilesService.setPreferredTrainingSource(userId, 'template');
+    return serializeValue(template);
   }
 
   async setDefault(userId: string, templateId: string) {
@@ -159,10 +163,25 @@ export class TrainingTemplatesService {
     });
   }
 
+  async previewForTodaySource(userId: string, date: Date) {
+    return this.preview(userId, {
+      date: toDateOnlyString(date),
+    });
+  }
+
   async importPreview(userId: string, dto: ImportTrainingTemplatePreviewDto) {
-    const template = await this.repository.findByIdAndUserId(dto.templateId, userId);
-    if (!template) {
-      throw new AppException('NOT_FOUND', '训练模板不存在。', 404);
+    let template:
+      | {
+          id: string;
+          updatedAt: Date | string;
+        }
+      | null = null;
+
+    if (dto.templateId) {
+      template = await this.repository.findByIdAndUserId(dto.templateId, userId);
+      if (!template) {
+        throw new AppException('NOT_FOUND', '训练模板不存在。', 404);
+      }
     }
 
     const preview = parseTrainingTemplateImportText(dto.rawText);
@@ -171,8 +190,8 @@ export class TrainingTemplatesService {
     }
 
     const previewToken = this.previewStore.save(
-      template.id,
-      this.normalizeTimestamp(template.updatedAt),
+      template?.id ?? null,
+      template ? this.normalizeTimestamp(template.updatedAt) : null,
       preview,
     );
 

@@ -249,9 +249,11 @@ async function runPgCtlStartWithTimeoutTolerance(diagnosticsLabel) {
       diagnosticsLabel,
     });
   } catch (error) {
-    if (isStartupTimeoutError(error) && await isDatabaseReachable()) {
-      console.warn('[CampusFit DB] pg_ctl start 超时，但数据库已经可连接，按启动成功继续。');
-      return;
+    if (isStartupTimeoutError(error)) {
+      if (await isDatabaseReachable()) {
+        console.warn('[CampusFit DB] pg_ctl start 超时，但数据库已经可连接，按启动成功继续。');
+        return;
+      }
     }
 
     throw error;

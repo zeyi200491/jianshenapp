@@ -101,6 +101,7 @@ function main() {
   expectNotIncludes(authSource, 'SESSION_KEY', 'Web auth must not keep browser token-storage keys');
 
   const webApiSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/api.ts'), 'utf8');
+  const webApiTypesSource = readFileSync(resolve(rootDirectory, 'apps/web/lib/api-types.ts'), 'utf8');
   expectIncludes(webApiSource, 'X-CampusFit-CSRF', 'Web API client should send a CSRF marker on cookie-authenticated mutations');
   expectIncludes(webApiSource, 'isStateChangingRequest', 'Web API client should only add the CSRF marker to state-changing requests');
 
@@ -255,6 +256,11 @@ function main() {
     resolve(rootDirectory, 'apps/web/components/web/today/today-coach-section.tsx'),
     'utf8',
   );
+  expectIncludes(
+    webApiTypesSource,
+    "export type ActiveTrainingSource = 'system' \\| 'user_override' \\| 'template';",
+    'Web API types should allow template as an active training source',
+  );
   expectIncludes(todaySource, '指挥中心', 'Today page should expose the dashboard title');
   expectIncludes(todaySource, 'isCardioPlan', 'Today page should compute cardio-plan state before rendering the training panel');
   expectIncludes(todaySource, 'isCutTarget', 'Today page should keep target-type branching explicit through dashboard state');
@@ -283,8 +289,32 @@ function main() {
   expectIncludes(todayCoachSectionSource, 'LiveStatusCard', 'Today coach section should announce AI refresh errors through the shared live-status card');
   expectIncludes(todayTrainingPanelSource, '今日减脂有氧计划', 'Training panel component should expose a dedicated cardio training title');
   expectIncludes(todayTrainingPanelSource, '爬坡有氧', 'Training panel component should describe treadmill incline cardio in the training panel');
-  expectIncludes(todayTrainingPanelSource, '应用个人模板到今天', 'Training panel component should let users apply their own weekly template to today');
+  expectIncludes(
+    todayTrainingPanelSource,
+    "activeTrainingSource === 'template'",
+    'Training panel component should explicitly handle template as the active training source',
+  );
   expectIncludes(todayTrainingPanelSource, '恢复系统方案', 'Training panel component should let users restore the system training plan');
+  expectNotIncludes(
+    todayTrainingPanelSource,
+    'slice(0, 4)',
+    'Training panel component should not truncate personal-template training items to four rows',
+  );
+  expectNotIncludes(
+    todayTrainingPanelSource,
+    '重新生成今日计划',
+    'Training panel component should remove the redundant regenerate-today button copy',
+  );
+  expectNotIncludes(
+    todayTrainingPanelSource,
+    '去每日打卡',
+    'Training panel component should remove the redundant check-in shortcut button copy',
+  );
+  expectNotIncludes(
+    todayTrainingPanelSource,
+    '应用个人模板到今天',
+    'Training panel component should stop rendering the manual apply-template button copy',
+  );
   expectIncludes(todayTrainingPanelSource, '/account/training-templates', 'Training panel component should link to training-template management');
   expectIncludes(todayProfileFormSource, '饮食偏好', 'Profile settings form component should expose diet preference summary');
   expectIncludes(todayProfileFormSource, '饮食限制', 'Profile settings form component should expose diet restriction summary');
@@ -315,25 +345,72 @@ function main() {
   expectIncludes(trainingTemplatePageSource, 'fetchTrainingTemplates', 'Training template page should load template lists from the API');
   expectIncludes(trainingTemplatePageSource, 'createTrainingTemplate', 'Training template page should create personal templates');
   expectIncludes(trainingTemplatePageSource, 'updateTrainingTemplate', 'Training template page should update personal templates');
-  expectIncludes(trainingTemplatePageSource, 'importTrainingTemplatePreview', 'Training template page should preview text imports before overwrite');
-  expectIncludes(trainingTemplatePageSource, 'applyTrainingTemplateImport', 'Training template page should apply selected imported weekdays');
+  expectIncludes(trainingTemplatePageSource, 'importTrainingTemplatePreview', 'Training template page should parse text imports through the preview API');
+  expectIncludes(trainingTemplatePageSource, 'buildDraftFromImportPreview', 'Training template page should turn parsed imports into unsaved drafts');
   expectIncludes(trainingTemplatePageSource, 'enableTrainingTemplate', 'Training template page should enable a template for today');
   expectIncludes(trainingTemplatePageSource, 'setDefaultTrainingTemplate', 'Training template page should support a long-term default template');
+  expectIncludes(
+    trainingTemplatePageSource,
+    '已根据文本生成新的草稿模板，你现在可以继续调整后再保存。',
+    'Training template page should explain that text import creates a draft first',
+  );
+  expectIncludes(
+    trainingTemplatePageSource,
+    "window\\.confirm\\('继续后会替换当前未保存内容，是否继续？'\\)",
+    'Training template page should confirm before replacing an unsaved draft',
+  );
+  expectNotIncludes(
+    trainingTemplatePageSource,
+    '请先保存这套模板，再使用文字导入。',
+    'Training template page should stop blocking text import behind a saved template',
+  );
+  expectNotIncludes(
+    trainingTemplatePageSource,
+    'applyTrainingTemplateImport',
+    'Training template page should stop applying imported weekdays directly into saved templates',
+  );
   expectIncludes(trainingTemplatePageSource, 'normalizeTrainingTemplateDraftForSave', 'Training template page should normalize internal-only fields before save');
-  expectIncludes(trainingTemplatePageSource, '已先保存当前模板，现在可以继续文字导入。', 'Training template page should auto-save before opening text import');
   expectIncludes(trainingTemplateListSource, '我的模板', 'Training template list should expose the template list title');
   expectIncludes(trainingTemplateListSource, 'today 默认来源', 'Training template list should expose the enable-for-today action');
   expectIncludes(trainingTemplateEditorSource, '周模板编辑器', 'Training template editor should expose the weekly editor title');
   expectIncludes(trainingTemplateEditorSource, '保存模板', 'Training template editor should expose a save action');
   expectIncludes(trainingTemplateEditorSource, '文字导入', 'Training template editor should expose the text-import entry');
+  expectIncludes(
+    trainingTemplateEditorSource,
+    '当前是未保存草稿，确认无误后再保存模板',
+    'Training template editor should expose the unsaved draft guidance',
+  );
+  expectNotIncludes(
+    trainingTemplateEditorSource,
+    'importDisabled',
+    'Training template editor should not hard-disable text import for unsaved drafts',
+  );
+  expectNotIncludes(
+    trainingTemplateEditorSource,
+    'value=\\{day\\.durationMinutes',
+    'Training template editor should not render the day duration input',
+  );
+  expectNotIncludes(
+    trainingTemplateEditorSource,
+    'value=\\{item\\.exerciseCode',
+    'Training template editor should not render the manual exercise-code input',
+  );
+  expectIncludes(
+    trainingTemplateImportDrawerSource,
+    '生成草稿模板',
+    'Training template import drawer should expose the new draft-generation action',
+  );
+  expectNotIncludes(
+    trainingTemplateImportDrawerSource,
+    '确认覆盖',
+    'Training template import drawer should stop framing import as direct overwrite',
+  );
   expectIncludes(trainingTemplateEditorSource, 'buildExerciseCodeFromName', 'Training template editor should auto-generate internal exercise codes from the action name');
   expectNotIncludes(trainingTemplateEditorSource, 'importDisabled', 'Training template editor should not hard-disable the import entry for unsaved drafts');
   expectNotIncludes(trainingTemplateEditorSource, "value=\\{day\\.durationMinutes \\?\\? ''\\}", 'Training template editor should not render a manual duration input');
   expectNotIncludes(trainingTemplateEditorSource, 'value=\\{item\\.exerciseCode\\}', 'Training template editor should not render a manual exercise-code input');
   expectIncludes(trainingTemplateDraftSource, 'buildExerciseCodeFromName', 'Training template draft helpers should expose exercise-code generation');
   expectIncludes(trainingTemplateDraftSource, 'normalizeTrainingTemplateDraftForSave', 'Training template draft helpers should normalize hidden template fields before save');
-  expectIncludes(trainingTemplateImportDrawerSource, '开始解析', 'Training template import drawer should expose the parse action');
-  expectIncludes(trainingTemplateImportDrawerSource, '确认覆盖', 'Training template import drawer should expose the apply action');
   expectIncludes(trainingTemplateImportDrawerSource, '示例格式', 'Training template import drawer should expose an example format helper');
 
   const statusSource = readFileSync(resolve(rootDirectory, 'apps/web/app/status/page.tsx'), 'utf8');

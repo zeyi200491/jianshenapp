@@ -33,6 +33,7 @@ export class UsersService {
             dietPreferences: user.profile.dietPreferences,
             dietRestrictions: user.profile.dietRestrictions,
             supplementOptIn: user.profile.supplementOptIn,
+            preferredTrainingSource: user.profile.preferredTrainingSource ?? 'system',
             onboardingCompletedAt: user.profile.onboardingCompletedAt,
           }
         : null,

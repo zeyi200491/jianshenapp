@@ -38,6 +38,17 @@ test('local schema patch includes training cycle columns', () => {
 
   assert.match(localSchemaScript, /training_cycle_start_focus/i);
   assert.match(localSchemaScript, /training_cycle_reset_at/i);
+  assert.match(localSchemaScript, /preferred_training_source/i);
+});
+
+test('local schema patch includes training template text import columns', () => {
+  const localSchemaScript = stripBom(readFileSync(resolve(rootDirectory, 'scripts/local-schema.mjs'), 'utf8'));
+
+  assert.match(localSchemaScript, /ALTER TABLE user_training_template_items/i);
+  assert.match(localSchemaScript, /ADD COLUMN IF NOT EXISTS rep_text/i);
+  assert.match(localSchemaScript, /ADD COLUMN IF NOT EXISTS source_type/i);
+  assert.match(localSchemaScript, /ADD COLUMN IF NOT EXISTS raw_input/i);
+  assert.match(localSchemaScript, /ALTER TABLE daily_training_override_items/i);
 });
 
 test('local schema patch makes quick check-in signal columns nullable', () => {

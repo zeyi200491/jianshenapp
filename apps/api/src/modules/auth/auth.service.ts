@@ -101,6 +101,24 @@ export class AuthService {
     };
   }
 
+  private async buildRefreshPayload(payload: { sub: string; role?: string; type?: string }) {
+    if (payload.type === 'admin-refresh' && payload.role === 'operator') {
+      const email = payload.sub.replace(/^admin:/, '');
+      return this.buildAdminLoginPayload(email);
+    }
+
+    if (payload.type !== 'refresh') {
+      throw new AppException('UNAUTHORIZED', '刷新会话已失效，请重新登录', 401);
+    }
+
+    const user = await this.authRepository.findUserById(payload.sub);
+    if (!user) {
+      throw new AppException('UNAUTHORIZED', '刷新会话已失效，请重新登录', 401);
+    }
+
+    return this.buildLoginPayload(user);
+  }
+
   private generateOtpCode() {
     return String(randomInt(0, 1_000_000)).padStart(6, '0');
   }
@@ -233,6 +251,19 @@ export class AuthService {
     }
 
     return this.buildAdminLoginPayload(normalizedEmail);
+  }
+
+  async refreshSession(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string; type?: string }>(refreshToken);
+      return this.buildRefreshPayload(payload);
+    } catch (error) {
+      if (error instanceof AppException) {
+        throw error;
+      }
+
+      throw new AppException('UNAUTHORIZED', '刷新会话已失效，请重新登录', 401);
+    }
   }
 
   getAdminSession(user: { userId: string; role?: string; tokenType?: string }) {

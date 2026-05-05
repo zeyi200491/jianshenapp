@@ -46,10 +46,8 @@ type TrainingPlanPanelProps = {
   focusOptions: FocusOption[];
   onSelectFocus: (focus: TrainingFocus) => void;
   onSelectTemplateWeekday: (weekday: TrainingTemplateWeekday) => void;
-  onApplyTemplateToToday: () => void;
   onRestoreSystemTraining: () => void;
   onGenerateTodayTraining: () => void;
-  onRegenerate: () => void;
   disabled: boolean;
   focusMessage: string;
   intensityLabels: Record<string, string>;
@@ -68,17 +66,31 @@ export function TrainingPlanPanel({
   focusOptions,
   onSelectFocus,
   onSelectTemplateWeekday,
-  onApplyTemplateToToday,
   onRestoreSystemTraining,
   onGenerateTodayTraining,
-  onRegenerate,
   disabled,
   focusMessage,
   intensityLabels,
   movementPatternLabels,
 }: TrainingPlanPanelProps) {
   const activePreviewWeekday = selectedTemplateWeekday ?? templatePreview?.weekday ?? null;
+  const isTemplateActive = activeTrainingSource === 'template';
   const isUserOverride = activeTrainingSource === 'user_override';
+  const hasRestorableSystemPlan = activeTrainingSource !== 'system';
+
+  const sourceTag = isTemplateActive
+    ? '个人模板默认生效中'
+    : isUserOverride
+      ? '手动覆盖中'
+      : isCardioPlan
+        ? '有氧计划'
+        : '系统方案';
+
+  const templateDescription = templatePreview
+    ? isTemplateActive
+      ? `当前默认模板：${weekdayLabels[templatePreview.weekday]} · ${templatePreview.day.title}`
+      : `当前预览：${weekdayLabels[templatePreview.weekday]} · ${templatePreview.day.title}，系统方案仍可执行，切回模板来源后会优先展示这里的安排。`
+    : '启用个人周模板后，这里会展示今天对应的模板安排，并在默认来源切到模板时直接成为主训练区。';
 
   return (
     <DashboardCard>
@@ -92,20 +104,14 @@ export function TrainingPlanPanel({
             {isCardioPlan ? '今日减脂有氧计划' : trainingPlan?.title ?? '先选择今天想练的部位'}
           </h2>
         </div>
-        <PanelTag tone="deep">
-          {isUserOverride ? '个人模板生效中' : isCardioPlan ? '有氧计划' : '系统方案'}
-        </PanelTag>
+        <PanelTag tone="deep">{sourceTag}</PanelTag>
       </div>
 
       <div className="mt-6 rounded-[28px] bg-[#eef6fb] px-5 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-[#17324d]">我的训练模板</p>
-            <p className="mt-1 text-sm text-[#5f768d]">
-              {templatePreview
-                ? `当前预览：${weekdayLabels[templatePreview.weekday]} · ${templatePreview.day.title}`
-                : '启用个人周模板后，这里可以预览并一键替换今天的训练方案。'}
-            </p>
+            <p className="mt-1 text-sm text-[#5f768d]">{templateDescription}</p>
           </div>
           <Link
             href="/account/training-templates"
@@ -139,7 +145,7 @@ export function TrainingPlanPanel({
               <p className="font-semibold text-[#17324d]">{templatePreview.day.title}</p>
               <p className="mt-1">
                 {templatePreview.day.dayType === 'rest'
-                  ? '这一天是休息/恢复安排，应用后今日页会按你的个人节奏展示。'
+                  ? '这一天是休息或恢复安排；当个人模板默认生效时，today 主训练区会直接按这套节奏展示。'
                   : `预计 ${templatePreview.day.durationMinutes ?? '--'} 分钟，共 ${templatePreview.day.items.length} 个动作。`}
               </p>
             </div>
@@ -150,7 +156,7 @@ export function TrainingPlanPanel({
       {isCardioPlan ? (
         <>
           <p className="mt-4 text-lg leading-8 text-[#5f768d]">
-            {trainingPlan?.title ?? '减脂有氧'}，把正式有氧主段控制在 25-45 分钟，优先稳定执行和恢复。
+            {(trainingPlan?.title ?? '减脂有氧')}，把正式有氧主段控制在 25-45 分钟，优先稳定执行和恢复。
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <MetricPill label="计划类型" value="爬坡有氧" />
@@ -218,7 +224,7 @@ export function TrainingPlanPanel({
             })}
           </div>
           <div className="mt-6 space-y-3">
-            {(trainingPlan?.items ?? []).slice(0, 4).map((item, index) => {
+            {(trainingPlan?.items ?? []).map((item, index) => {
               const enrichedItem = item as TodayTrainingItem;
               return (
                 <div
@@ -234,7 +240,8 @@ export function TrainingPlanPanel({
                     <div>
                       <p className="text-lg font-semibold text-[#17324d]">{item.name}</p>
                       <p className="text-sm text-[#677f95]">
-                        {item.sets} 组 · {enrichedItem.repText ?? item.reps} · {movementPatternLabels[item.movementPattern]} · 休息 {item.restSeconds} 秒
+                        {item.sets} 组 · {enrichedItem.repText ?? item.reps} · {movementPatternLabels[item.movementPattern]} ·
+                        休息 {item.restSeconds} 秒
                       </p>
                       <p className="mt-1 text-xs text-[#6f8799]">{item.restHint}</p>
                       {enrichedItem.rawInput ? (
@@ -251,17 +258,7 @@ export function TrainingPlanPanel({
       )}
 
       <div className="mt-6 flex flex-wrap gap-3">
-        {templatePreview ? (
-          <button
-            type="button"
-            onClick={onApplyTemplateToToday}
-            disabled={disabled}
-            className="rounded-full bg-[#17324d] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            应用个人模板到今天
-          </button>
-        ) : null}
-        {isUserOverride ? (
+        {hasRestorableSystemPlan ? (
           <button
             type="button"
             onClick={onRestoreSystemTraining}
@@ -281,25 +278,12 @@ export function TrainingPlanPanel({
             按 {focusOptions.find((item) => item.focus === selectedFocus)?.label ?? '推日'} 生成计划
           </button>
         ) : null}
-        <button
-          type="button"
-          onClick={onRegenerate}
-          disabled={disabled}
-          className="rounded-full border border-[#d3e3ee] bg-white px-5 py-3 text-sm font-semibold text-[#17324d] disabled:opacity-60"
-        >
-          重新生成今日计划
-        </button>
-        <Link
-          href="/check-in"
-          className="rounded-full border border-[#d3e3ee] bg-white px-5 py-3 text-sm font-semibold text-[#17324d]"
-        >
-          去每日打卡
-        </Link>
       </div>
 
-      {isUserOverride && systemTrainingPlan ? (
+      {hasRestorableSystemPlan && systemTrainingPlan ? (
         <p className="mt-4 rounded-[20px] bg-[#f7fafc] px-4 py-3 text-sm text-[#5f768d]">
-          系统原方案仍然保留：{systemTrainingPlan.title}
+          {isTemplateActive ? '当前仍可随时恢复系统方案：' : '系统原方案仍然保留：'}
+          {systemTrainingPlan.title}
         </p>
       ) : null}
       {focusMessage ? (

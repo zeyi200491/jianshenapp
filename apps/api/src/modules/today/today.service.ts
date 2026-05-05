@@ -10,7 +10,9 @@ import { serializeValue } from '../../common/utils/serialize.util';
 import { CheckInsRepository } from '../check-ins/check-ins.repository';
 import { buildDietPlanMeals, buildEffectiveDailyTotals } from '../meal-intakes/meal-intake-presenter';
 import { PlansService } from '../plans/plans.service';
+import { ProfilesService } from '../profiles/profiles.service';
 import { TrainingOverridesRepository } from '../training-overrides/training-overrides.repository';
+import { TrainingTemplatesService } from '../training-templates/training-templates.service';
 import { WeeklyReviewsRepository } from '../weekly-reviews/weekly-reviews.repository';
 
 function buildMealTarget(item: {
@@ -59,12 +61,30 @@ function mapTrainingPlan(plan: any) {
   };
 }
 
+function mapTemplatePreviewToPlan(preview: any) {
+  if (!preview?.day) {
+    return null;
+  }
+
+  return {
+    id: preview.day.id ?? `${preview.templateId}:${preview.weekday}`,
+    title: preview.day.title,
+    splitType: preview.day.splitType ?? null,
+    durationMinutes: preview.day.durationMinutes ?? null,
+    intensityLevel: preview.day.intensityLevel ?? null,
+    notes: preview.day.notes ?? '',
+    items: preview.day.items ?? [],
+  };
+}
+
 @Injectable()
 export class TodayService {
   constructor(
     private readonly plansService: PlansService,
     private readonly checkInsRepository: CheckInsRepository,
     private readonly weeklyReviewsRepository: WeeklyReviewsRepository,
+    private readonly trainingTemplatesService: TrainingTemplatesService,
+    private readonly profilesService: ProfilesService,
     @Optional() private readonly trainingOverridesRepository?: TrainingOverridesRepository,
   ) {}
 
@@ -95,8 +115,23 @@ export class TodayService {
         ? await this.trainingOverridesRepository.findActiveByDailyPlanIdAndUser(plan.id, userId)
         : null);
     const systemTrainingPlan = mapTrainingPlan(plan.trainingPlan);
-    const activeTrainingPlan = mapTrainingPlan(activeOverride ?? plan.trainingPlan);
-    const activeTrainingSource = activeOverride ? 'user_override' : 'system';
+    let activeTrainingPlan = systemTrainingPlan;
+    let activeTrainingSource = 'system';
+
+    if (activeOverride) {
+      activeTrainingPlan = mapTrainingPlan(activeOverride);
+      activeTrainingSource = 'user_override';
+    } else if (profile.preferredTrainingSource === 'template') {
+      const templatePreview = await this.trainingTemplatesService.previewForTodaySource(userId, targetDate);
+      const templateTrainingPlan = mapTrainingPlan(mapTemplatePreviewToPlan(templatePreview));
+
+      if (templateTrainingPlan) {
+        activeTrainingPlan = templateTrainingPlan;
+        activeTrainingSource = 'template';
+      } else {
+        await this.profilesService.setPreferredTrainingSource(userId, 'system');
+      }
+    }
 
     return serializeValue({
       date: toDateOnlyString(targetDate),

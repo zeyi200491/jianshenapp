@@ -5,8 +5,8 @@ import type { ParsedImportPreview } from './training-template-import.parser';
 export const TRAINING_TEMPLATE_IMPORT_PREVIEW_TTL_MS = 15 * 60 * 1000;
 
 type PreviewRecord = {
-  templateId: string;
-  templateUpdatedAt: string;
+  templateId: string | null;
+  templateUpdatedAt: string | null;
   createdAt: number;
   payload: ParsedImportPreview;
 };
@@ -15,7 +15,7 @@ type PreviewRecord = {
 export class TrainingTemplateImportPreviewStore {
   private readonly previews = new Map<string, PreviewRecord>();
 
-  save(templateId: string, templateUpdatedAt: string, payload: ParsedImportPreview) {
+  save(templateId: string | null, templateUpdatedAt: string | null, payload: ParsedImportPreview) {
     this.deleteExpiredPreviews();
     const token = randomUUID();
     this.previews.set(token, {

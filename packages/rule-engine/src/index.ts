@@ -33,6 +33,7 @@ export interface RuleProfileInput {
   dietPreferences: string[];
   dietRestrictions: string[];
   supplementOptIn: boolean;
+  preferredTrainingSource: 'system' | 'template';
 }
 
 export interface NutritionTargets {
@@ -675,5 +676,4 @@ export function generateWeeklyReview(input: WeeklyReviewInput): WeeklyReviewResu
     narrativeText,
   };
 }
-
 

@@ -21,6 +21,39 @@ describe('UsersService', () => {
     });
   });
 
+  it('returns preferredTrainingSource from profile when fetching current user', async () => {
+    const { service, usersRepository } = createService();
+    usersRepository.findCurrentUser.mockResolvedValue({
+      id: 'user-1',
+      nickname: '测试用户',
+      avatarUrl: null,
+      status: 'active',
+      profile: {
+        gender: 'male',
+        birthYear: 2000,
+        heightCm: 180,
+        currentWeightKg: 75,
+        targetType: 'maintain',
+        activityLevel: 'moderate',
+        trainingExperience: 'intermediate',
+        trainingDaysPerWeek: 4,
+        dietScene: 'home',
+        dietPreferences: ['high_protein'],
+        dietRestrictions: [],
+        supplementOptIn: true,
+        onboardingCompletedAt: new Date('2026-05-01T08:00:00.000Z'),
+        preferredTrainingSource: 'template',
+      },
+    });
+
+    await expect(service.getCurrentUser('user-1')).resolves.toMatchObject({
+      id: 'user-1',
+      profile: {
+        preferredTrainingSource: 'template',
+      },
+    });
+  });
+
   it('creates a pending deletion request for the current user', async () => {
     const { service, usersRepository } = createService();
     usersRepository.createDeletionRequest.mockResolvedValue({

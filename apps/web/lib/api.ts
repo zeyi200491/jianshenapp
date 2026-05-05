@@ -1,4 +1,14 @@
-﻿import { ApiError, ApiEnvelope, type MovementPattern, type RestRuleSource, type IntensityLevel, type TrainingFocus, type WeekdayKey, type TrainingDayType } from '@campusfit/shared';
+import { ApiError } from '@campusfit/shared';
+import type {
+  ApiEnvelope,
+  IntensityLevel,
+  MovementPattern,
+  RestRuleSource,
+  TrainingDayType,
+  TrainingFocus,
+  WeekdayKey,
+} from '@campusfit/shared';
+
 export { ApiError };
 export type { IntensityLevel, MovementPattern, RestRuleSource, TrainingFocus } from '@campusfit/shared';
 export type {
@@ -62,14 +72,19 @@ import type {
   WeeklyReviewPayload,
 } from './api-types';
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3050/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3050/api/v1';
+const SESSION_STORAGE_KEY = 'campusfit-web-session';
+let refreshInFlight: Promise<LoginSession | null> | null = null;
 
 function isStateChangingRequest(method?: string) {
   return !['GET', 'HEAD', 'OPTIONS'].includes((method ?? 'GET').toUpperCase());
 }
 
 function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
   for (const segment of document.cookie.split(';')) {
     const [name, ...rest] = segment.trim().split('=');
     if (name === 'campusfit_csrf_token') {
@@ -79,17 +94,96 @@ function getCsrfToken(): string | null {
   return null;
 }
 
+function readSessionFromStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as LoginSession;
+  } catch {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeSessionToStorage(session: LoginSession | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (!session) {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+async function refreshSessionInRequestLayer() {
+  if (!readSessionFromStorage()) {
+    return null;
+  }
+
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CampusFit-CSRF': '1',
+        },
+      });
+
+      let payload: ApiEnvelope<LoginSession> | null = null;
+      try {
+        payload = (await response.json()) as ApiEnvelope<LoginSession>;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || payload?.code !== 'OK' || !payload.data) {
+        if (response.status === 401 || response.status === 403) {
+          writeSessionToStorage(null);
+        }
+        return null;
+      }
+
+      writeSessionToStorage(payload.data);
+      return payload.data;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
 const inflightRequests = new Map<string, Promise<unknown>>();
 
-async function requestJson<T>(path: string, init: RequestInit = {}, token?: string) {
+async function requestJson<T>(path: string, init: RequestInit = {}, token?: string, allowRefresh = true): Promise<T> {
   const method = (init.method ?? 'GET').toUpperCase();
 
   if (method === 'GET') {
     const dedupKey = `${path}|${token ?? ''}`;
     const pending = inflightRequests.get(dedupKey);
-    if (pending) return pending as Promise<T>;
+    if (pending) {
+      return pending as Promise<T>;
+    }
 
-    const promise = executeRequest<T>(path, init, token);
+    const promise = executeRequest<T>(path, init, token, allowRefresh);
     inflightRequests.set(dedupKey, promise);
     try {
       return await promise;
@@ -98,10 +192,15 @@ async function requestJson<T>(path: string, init: RequestInit = {}, token?: stri
     }
   }
 
-  return executeRequest<T>(path, init, token);
+  return executeRequest<T>(path, init, token, allowRefresh);
 }
 
-async function executeRequest<T>(path: string, init: RequestInit = {}, token?: string) {
+async function executeRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+  allowRefresh = true,
+): Promise<T> {
   const stateChanging = isStateChangingRequest(init.method);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -114,6 +213,13 @@ async function executeRequest<T>(path: string, init: RequestInit = {}, token?: s
       ...(init.headers ?? {}),
     },
   });
+
+  if (response.status === 401 && token && allowRefresh) {
+    const refreshedSession = await refreshSessionInRequestLayer();
+    if (refreshedSession?.accessToken) {
+      return requestJson<T>(path, init, refreshedSession.accessToken, false);
+    }
+  }
 
   let payload: ApiEnvelope<T> | null = null;
   try {
@@ -285,7 +391,7 @@ export async function previewTrainingTemplate(
 
 export async function importTrainingTemplatePreview(
   token: string,
-  payload: { templateId: string; rawText: string },
+  payload: { templateId?: string; rawText: string },
 ) {
   return requestJson<TrainingTemplateImportPreview>(
     '/users/me/training-templates/import-preview',

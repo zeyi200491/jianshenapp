@@ -18,6 +18,15 @@ export class AuthRepository {
     return code === 'P2021' && table === 'public.revoked_tokens';
   }
 
+  findUserById(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+      },
+    });
+  }
+
   findAccountByOpenId(provider: string, openId: string) {
     return this.prisma.authAccount.findUnique({
       where: {

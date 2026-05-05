@@ -7,7 +7,7 @@ import type {
   WeekdayKey,
 } from '@campusfit/shared';
 
-export type ActiveTrainingSource = 'system' | 'user_override';
+export type ActiveTrainingSource = 'system' | 'user_override' | 'template';
 export type TrainingTemplateStatus = 'active' | 'archived';
 export type TrainingTemplateWeekday = WeekdayKey;
 export type TrainingTemplateDayType = TrainingDayType;

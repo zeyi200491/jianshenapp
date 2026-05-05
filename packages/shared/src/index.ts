@@ -44,6 +44,9 @@ export type ApiEnvelope<T> = {
   data: T;
 };
 
+// 为直接执行的 TypeScript 测试保留一个同名运行时导出，避免 ESM 在解析值导入时报错。
+export const ApiEnvelope = Symbol('ApiEnvelope');
+
 // ── Shared API envelope (admin-style) ──
 export type ApiSuccessCode = 'OK';
 

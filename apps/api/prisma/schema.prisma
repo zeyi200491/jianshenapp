@@ -8,26 +8,39 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  nickname      String         @default("") @db.VarChar(64)
-  avatarUrl     String?        @map("avatar_url")
-  status        String         @default("active") @db.VarChar(32)
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  authAccounts  AuthAccount[]
-  profile       UserProfile?
-  bodyMetrics   BodyMetric[]
-  dailyPlans    DailyPlan[]
-  userTrainingTemplates UserTrainingTemplate[]
-  checkIns      CheckIn[]
-  weeklyReviews WeeklyReview[]
+  id                      String                   @id @default(uuid())
+  nickname                String                   @default("") @db.VarChar(64)
+  avatarUrl               String?                  @map("avatar_url")
+  status                  String                   @default("active") @db.VarChar(32)
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  authAccounts            AuthAccount[]
+  profile                 UserProfile?
+  bodyMetrics             BodyMetric[]
+  dailyPlans              DailyPlan[]
+  userTrainingTemplates   UserTrainingTemplate[]
+  checkIns                CheckIn[]
+  weeklyReviews           WeeklyReview[]
   weeklyReviewActionItems WeeklyReviewActionItem[]
-  mealIntakeOverrides MealIntakeOverride[]
-  dailyTrainingOverrides DailyTrainingOverride[]
-  aiConversations AiConversation[]
-  dataDeletionRequests DataDeletionRequest[]
+  mealIntakeOverrides     MealIntakeOverride[]
+  dailyTrainingOverrides  DailyTrainingOverride[]
+  aiConversations         AiConversation[]
+  dataDeletionRequests    DataDeletionRequest[]
 
   @@map("users")
+}
+
+model RevokedToken {
+  id        String   @id @default(uuid())
+  tokenId   String   @unique @map("token_id") @db.VarChar(128)
+  subject   String   @map("subject") @db.VarChar(128)
+  tokenType String   @map("token_type") @db.VarChar(32)
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime @default(now()) @map("revoked_at")
+
+  @@index([subject, tokenType])
+  @@index([expiresAt])
+  @@map("revoked_tokens")
 }
 
 model DataDeletionRequest {

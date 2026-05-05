@@ -10,6 +10,9 @@ export function resolveAllowedOrigins(env: NodeJS.ProcessEnv = process.env) {
     .filter(Boolean);
 
   if (configured && configured.length > 0) {
+    if (env.NODE_ENV === 'production') {
+      return Array.from(new Set(configured));
+    }
     return Array.from(new Set([...configured, ...defaultOrigins]));
   }
 

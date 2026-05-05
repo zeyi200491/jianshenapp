@@ -25,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WeeklyReviewsModule } from './modules/weekly-reviews/weekly-reviews.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { getJwtSecret } from './config/security.config';
+import { shouldSkipThrottle } from './config/throttle.config';
 
 function resolveEnvFilePaths() {
   return [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')].filter((filePath) =>
@@ -43,10 +44,15 @@ function resolveEnvFilePaths() {
       secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 30,
-    }]),
+    ThrottlerModule.forRoot({
+      skipIf: shouldSkipThrottle,
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 30,
+        },
+      ],
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,

@@ -26,7 +26,11 @@ describe('JwtAuthGuard', () => {
         sub: 'user-1',
         role: 'member',
         type: 'access',
+        jti: 'token-1',
       }),
+    };
+    const authRepository = {
+      isTokenRevoked: jest.fn().mockResolvedValue(false),
     };
     const request: Record<string, any> = {
       headers: {
@@ -40,19 +44,55 @@ describe('JwtAuthGuard', () => {
         getRequest: () => request,
       }),
     };
-    const guard = new JwtAuthGuard(reflector, jwtService as any);
+    const guard = new JwtAuthGuard(reflector, jwtService as any, authRepository as any);
 
     await expect(guard.canActivate(context as any)).resolves.toBe(true);
     expect(jwtService.verifyAsync).toHaveBeenCalledWith('user-jwt-token', {
       secret: 'test-secret-for-guard-spec',
     });
+    expect(authRepository.isTokenRevoked).toHaveBeenCalledWith('token-1');
     expect(request).toMatchObject({
       user: {
         userId: 'user-1',
         role: 'member',
         tokenType: 'access',
+        tokenId: 'token-1',
       },
     });
     expect(request.user).not.toHaveProperty('accessToken');
+  });
+
+  it('rejects revoked tokens even when the JWT signature is valid', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const jwtService = {
+      verifyAsync: jest.fn().mockResolvedValue({
+        sub: 'user-1',
+        role: 'member',
+        type: 'access',
+        jti: 'revoked-token-id',
+      }),
+    };
+    const authRepository = {
+      isTokenRevoked: jest.fn().mockResolvedValue(true),
+    };
+    const request: Record<string, any> = {
+      headers: {
+        authorization: 'Bearer revoked-token',
+      },
+    };
+    const context = {
+      getHandler: jest.fn(),
+      getClass: jest.fn(),
+      switchToHttp: () => ({
+        getRequest: () => request,
+      }),
+    };
+    const guard = new JwtAuthGuard(reflector, jwtService as any, authRepository as any);
+
+    await expect(guard.canActivate(context as any)).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
   });
 });

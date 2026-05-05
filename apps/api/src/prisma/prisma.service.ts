@@ -39,6 +39,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   checkIn: any;
   weeklyReview: any;
   weeklyReviewActionItem: any;
+  revokedToken: any;
 
   constructor() {
     this.bindDelegates();
@@ -130,5 +131,6 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     this.checkIn = source.checkIn;
     this.weeklyReview = source.weeklyReview;
     this.weeklyReviewActionItem = source.weeklyReviewActionItem;
+    this.revokedToken = source.revokedToken;
   }
 }

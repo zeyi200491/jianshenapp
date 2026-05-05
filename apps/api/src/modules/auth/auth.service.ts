@@ -1,10 +1,12 @@
-import { createHash, randomInt } from 'crypto';
+import { createHash, randomInt, randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AppException } from '../../common/utils/app.exception';
-import { getAdminCredentials, verifyPassword } from '../../config/security.config';
+import { getAdminCredentials, getJwtSecret, verifyPassword } from '../../config/security.config';
 import { AuthRepository } from './auth.repository';
 import { EmailSenderService } from './email-sender.service';
+import { extractAccessTokenFromHeaders, extractRefreshTokenFromHeaders } from './session-cookie.util';
+import { resolveRevocationTokenId } from './token-revocation.util';
 
 type OtpRecord = {
   code: string;
@@ -60,8 +62,11 @@ export class AuthService {
     avatarUrl: string | null;
     profile?: { onboardingCompletedAt?: Date | null } | null;
   }) {
-    const accessToken = await this.jwtService.signAsync({ sub: user.id }, { expiresIn: '7d' });
-    const refreshToken = await this.jwtService.signAsync({ sub: user.id, type: 'refresh' }, { expiresIn: '30d' });
+    const accessToken = await this.jwtService.signAsync({ sub: user.id, jti: randomUUID() }, { expiresIn: '7d' });
+    const refreshToken = await this.jwtService.signAsync(
+      { sub: user.id, type: 'refresh', jti: randomUUID() },
+      { expiresIn: '30d' },
+    );
 
     return {
       accessToken,
@@ -77,11 +82,11 @@ export class AuthService {
 
   private async buildAdminLoginPayload(email: string) {
     const accessToken = await this.jwtService.signAsync(
-      { sub: `admin:${email}`, role: 'operator', type: 'admin' },
+      { sub: `admin:${email}`, role: 'operator', type: 'admin', jti: randomUUID() },
       { expiresIn: '12h' },
     );
     const refreshToken = await this.jwtService.signAsync(
-      { sub: `admin:${email}`, role: 'operator', type: 'admin-refresh' },
+      { sub: `admin:${email}`, role: 'operator', type: 'admin-refresh', jti: randomUUID() },
       { expiresIn: '30d' },
     );
 
@@ -104,13 +109,49 @@ export class AuthService {
     if (!this.emailSender.isMockProvider()) {
       return undefined;
     }
-    return code;
+    if (process.env.NODE_ENV === 'production') {
+      return undefined;
+    }
+
+    const configured = process.env.AUTH_EMAIL_DEV_CODE_VISIBLE?.trim().toLowerCase();
+    const shouldExposeInDev = configured !== 'false';
+
+    return shouldExposeInDev ? code : undefined;
   }
 
   private buildMaskedDestination(email: string) {
     const [name, domain] = email.split('@');
     const maskedName = name.length <= 2 ? `${name[0] ?? '*'}*` : `${name.slice(0, 2)}***`;
     return `${maskedName}@${domain}`;
+  }
+
+  private async revokeTokenIfValid(token: string | null, fallbackType: string) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{
+        sub: string;
+        exp?: number;
+        jti?: string;
+        type?: string;
+      }>(token, {
+        secret: getJwtSecret(),
+      });
+      if (!payload.sub || !payload.exp) {
+        return;
+      }
+
+      await this.authRepository.createRevokedToken({
+        tokenId: resolveRevocationTokenId(token, payload),
+        subject: payload.sub,
+        tokenType: payload.type ?? fallbackType,
+        expiresAt: new Date(payload.exp * 1000),
+      });
+    } catch {
+      // 无效或过期 token 只清 Cookie，不再额外写入撤销记录。
+    }
   }
 
   async requestEmailOtp(email: string) {
@@ -172,7 +213,6 @@ export class AuthService {
     const identity = this.buildEmailIdentity(normalizedEmail, code);
     const existing = await this.authRepository.findAccountByOpenId(identity.provider, identity.openId);
     const user = existing?.user ?? (await this.authRepository.createUserWithAccount(identity));
-
     return this.buildLoginPayload(user);
   }
 
@@ -206,5 +246,11 @@ export class AuthService {
       name: email.split('@')[0],
       role: 'operator',
     };
+  }
+
+  async logout(headers: { authorization?: string | string[]; cookie?: string }) {
+    await this.revokeTokenIfValid(extractAccessTokenFromHeaders(headers), 'access');
+    await this.revokeTokenIfValid(extractRefreshTokenFromHeaders(headers), 'refresh');
+    return { success: true };
   }
 }

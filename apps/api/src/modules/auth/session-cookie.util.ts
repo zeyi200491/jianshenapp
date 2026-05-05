@@ -74,6 +74,13 @@ function parseCookieHeader(cookieHeader: string | undefined) {
   return cookies;
 }
 
+export function extractRefreshTokenFromHeaders(headers: {
+  cookie?: string;
+}) {
+  const cookies = parseCookieHeader(headers.cookie);
+  return cookies.get(REFRESH_TOKEN_COOKIE) ?? null;
+}
+
 export function extractAccessTokenFromHeaders(headers: {
   authorization?: string | string[];
   cookie?: string;

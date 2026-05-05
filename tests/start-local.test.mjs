@@ -37,8 +37,10 @@ test('一键启动脚本覆盖 web、api 与 ai-service 的启动和健康检查
   assert.match(script, /\.tmp[\\/]+edge-local-profile/);
   assert.match(script, /Open-LocalUrl -Url \$webUrl/);
   assert.match(script, /Open-LocalUrl -Url \$docsUrl/);
+  assert.match(script, /Set-ProcessEnvValue -Key 'AI_SERVICE_AUTH_TOKEN' -Value \$aiServiceAuthToken/, '一键启动脚本必须为 API 与 AI 子进程注入 AI_SERVICE_AUTH_TOKEN');
   assert.match(script, /Set-ProcessEnvValue -Key 'ADMIN_EMAIL' -Value \$adminEmail/, '一键启动脚本必须为 API 子进程注入 ADMIN_EMAIL');
   assert.match(script, /Set-ProcessEnvValue -Key 'ADMIN_PASSWORD' -Value \$adminPassword/, '一键启动脚本必须为 API 子进程注入 ADMIN_PASSWORD');
+  assert.match(script, /Get-EnvValue -Key 'AI_SERVICE_AUTH_TOKEN' -Fallback/, '本地启动应为缺失的服务鉴权令牌提供开发兜底值');
   assert.match(script, /Get-EnvValue -Key 'ADMIN_EMAIL' -Fallback/, '本地启动应为缺失的管理员邮箱提供开发兜底值');
   assert.match(
     script,
@@ -50,13 +52,17 @@ test('一键启动脚本覆盖 web、api 与 ai-service 的启动和健康检查
     /node dist\/apps\/api\/src\/main\.js|node dist\\apps\\api\\src\\main\.js/,
     '一键启动脚本在完成 API build 后应直接启动编译产物，避免再次触发 npm prestart 导致健康检查超时'
   );
+  assert.match(script, /set NODE_ENV=production && npm\.cmd run build/, 'Web 构建必须强制使用 production 模式，避免 Next.js 产物缺失');
+  assert.match(script, /set NODE_ENV=production && npm\.cmd run start/, 'Web 启动必须强制使用 production 模式，避免 next start 读取错误环境');
   assert.match(script, /\$rebuiltServices = \[System\.Collections\.Generic\.HashSet\[string\]\]::new\(\)/);
   assert.match(script, /\$rebuiltServices\.Contains\(\$ServiceName\)/);
   assert.match(script, /Rebuilt in current run, restarting to load latest artifacts\./);
   assert.doesNotMatch(script, /campusfit_dev_secret|campusfit-dev-secret/, '本地启动脚本不应内置固定 JWT 开发密钥');
   assert.doesNotMatch(script, /CampusFit123!/, '本地启动脚本不应内置固定管理员密码');
   assert.match(script, /New-DevJwtSecret/, '缺失 JWT_SECRET 时应动态生成开发密钥');
+  assert.match(script, /New-DevServiceToken/, '缺失 AI_SERVICE_AUTH_TOKEN 时应动态生成服务鉴权令牌');
   assert.match(script, /New-DevAdminPassword/, '缺失 ADMIN_PASSWORD 时应动态生成开发密码');
+  assert.match(script, /if \(\$aiServiceAuthToken -eq \$jwtSecret\)/, 'AI_SERVICE_AUTH_TOKEN 不应与 JWT_SECRET 共用同一个值');
 });
 
 test('Edge 独立 profile 路径带引号，避免项目路径含空格时被拆成错误标签页', () => {
@@ -88,4 +94,5 @@ test('一键启动脚本会在 Web 构建产物或 .env 更新后自动重启 We
 
   assert.match(script, /Start-ManagedService -ServiceName 'Web'[\s\S]*-WatchFilePaths @\(\$envFile, \(Join-Path \$webWorkdir '\.next\/BUILD_ID'\)\)/, 'Web 启动必须传入文件监控路径');
   assert.match(script, /\$latestWatchUtc = Get-FileWatchUtc -Paths \$WatchFilePaths/, 'Web 服务必须基于监控文件时间决定是否重启');
+  assert.match(script, /Start-ManagedService -ServiceName 'Web'[\s\S]*-StartupRetries 90/, 'Web 启动应放宽健康检查等待时间，避免 Next.js 生产服务器冷启动误报超时');
 });

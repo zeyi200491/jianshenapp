@@ -1,15 +1,16 @@
-import { Body, Controller, Get, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { generateCsrfToken } from '../../common/security/csrf.util';
 import type { CurrentUserPayload } from '../../common/types/request-with-user';
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { EmailRequestCodeDto } from './dto/email-request-code.dto';
 import { WechatLoginDto } from './dto/wechat-login.dto';
-import { generateCsrfToken } from '../../common/security/csrf.util';
 import { buildCsrfCookieHeader, buildSessionCookieHeaders, clearSessionCookieHeaders } from './session-cookie.util';
 
 @ApiTags('auth')
@@ -19,13 +20,15 @@ export class AuthController {
 
   @Public()
   @Post('email/request-code')
-  @ApiOperation({ summary: '发送邮箱验证码，开发模式下可能返回 devCode 便于联调' })
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: '发送邮箱验证码，开发联调时仅在显式开启后返回 devCode' })
   requestCode(@Body() dto: EmailRequestCodeDto) {
     return this.authService.requestEmailOtp(dto.email);
   }
 
   @Public()
   @Post('email/verify-code')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '使用邮箱验证码登录' })
   async verifyCode(@Body() dto: EmailLoginDto, @Res({ passthrough: true }) response: Response) {
     const session = await this.authService.loginWithEmailOtp(dto.email, dto.code);
@@ -46,6 +49,7 @@ export class AuthController {
 
   @Public()
   @Post('admin/login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '管理员登录' })
   async adminLogin(@Body() dto: AdminLoginDto, @Res({ passthrough: true }) response: Response) {
     const session = await this.authService.loginAdmin(dto.email, dto.password);
@@ -63,7 +67,8 @@ export class AuthController {
   @Public()
   @Post('logout')
   @ApiOperation({ summary: '退出登录并清理会话 Cookie' })
-  logout(@Res({ passthrough: true }) response: Response) {
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    await this.authService.logout(request.headers);
     response.setHeader('Set-Cookie', clearSessionCookieHeaders());
     return { success: true };
   }

@@ -29,6 +29,7 @@ const postgresPort = Number(process.env.POSTGRES_PORT ?? env.POSTGRES_PORT ?? '5
 const postgresUser = process.env.POSTGRES_USER ?? env.POSTGRES_USER ?? 'campusfit';
 const postgresPassword = process.env.POSTGRES_PASSWORD ?? env.POSTGRES_PASSWORD ?? 'campusfit_dev';
 const postgresDatabase = process.env.POSTGRES_DB ?? env.POSTGRES_DB ?? 'campusfit_ai';
+
 function ensureDirectory(targetPath) {
   mkdirSync(targetPath, { recursive: true });
 }
@@ -53,6 +54,208 @@ function readLogTail(maxLines = 30) {
 
   const lines = readText(LOG_FILE).split(/\r?\n/).filter(Boolean);
   return lines.slice(-maxLines).join('\n');
+}
+
+export function parsePostmasterPid(content) {
+  if (!content) {
+    return null;
+  }
+
+  const firstLine = content.split(/\r?\n/u).map((line) => line.trim()).find(Boolean);
+  if (!firstLine || !/^\d+$/u.test(firstLine)) {
+    return null;
+  }
+
+  return Number(firstLine);
+}
+
+function readPostmasterPid() {
+  if (!existsSync(PID_FILE)) {
+    return null;
+  }
+
+  return parsePostmasterPid(readText(PID_FILE));
+}
+
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPgCtlStatusRunning() {
+  const result = spawnSync(postgresBinaryModule.pg_ctl, ['status', '-D', DATA_DIR], {
+    cwd: ROOT_DIR,
+    env: {
+      ...process.env,
+      PGPASSWORD: postgresPassword,
+    },
+    stdio: 'pipe',
+    encoding: 'utf8',
+    timeout: 15_000,
+  });
+
+  return result.status === 0;
+}
+
+export function shouldRecoverStaleServerState({
+  databaseReachable,
+  pgCtlThinksRunning,
+  pidFileExists,
+  pidAlive,
+}) {
+  if (databaseReachable) {
+    return false;
+  }
+
+  if (!pidFileExists) {
+    return false;
+  }
+
+  return pidAlive || !pgCtlThinksRunning;
+}
+
+export function isRecoverableStartupFailure(message) {
+  if (!message) {
+    return false;
+  }
+
+  return message.includes('another server might be running') || message.includes('Permission denied');
+}
+
+export function isStartupTimeoutError(error) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.message.includes('ETIMEDOUT')) {
+    return true;
+  }
+
+  return error.cause instanceof Error && 'code' in error.cause && error.cause.code === 'ETIMEDOUT';
+}
+
+function sleepMs(durationMs) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+}
+
+function listOwnedPostgresProcessIds() {
+  if (process.platform !== 'win32') {
+    return [];
+  }
+
+  const result = spawnSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "Get-CimInstance Win32_Process -Filter \"name = 'postgres.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
+    ],
+    {
+      stdio: 'pipe',
+      encoding: 'utf8',
+      timeout: 15_000,
+    },
+  );
+
+  if (result.error || result.status !== 0 || !result.stdout?.trim()) {
+    return [];
+  }
+
+  const rawEntries = JSON.parse(result.stdout);
+  const entries = Array.isArray(rawEntries) ? rawEntries : [rawEntries];
+  const workspaceToken = ROOT_DIR.replaceAll('\\', '/').toLowerCase();
+
+  return entries
+    .filter((entry) => {
+      const commandLine = String(entry.CommandLine ?? '').replaceAll('\\', '/').toLowerCase();
+      return commandLine.includes(workspaceToken) && commandLine.includes('/@embedded-postgres/windows-x64/native/bin/postgres.exe');
+    })
+    .map((entry) => Number(entry.ProcessId))
+    .filter((pid) => Number.isInteger(pid) && pid > 0);
+}
+
+function killProcessTree(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return;
+  }
+
+  if (!isProcessAlive(pid)) {
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    const result = spawnSync('taskkill.exe', ['/PID', String(pid), '/F', '/T'], {
+      stdio: 'pipe',
+      encoding: 'utf8',
+      timeout: 15_000,
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    if (result.status !== 0 && isProcessAlive(pid)) {
+      throw new Error(result.stderr?.trim() || `taskkill 失败，PID=${pid}`);
+    }
+
+    return;
+  }
+
+  process.kill(pid, 'SIGKILL');
+}
+
+function repairStaleServerState(reason) {
+  const pidFromFile = readPostmasterPid();
+  console.warn(`[CampusFit DB] 检测到异常实例状态，准备清理后重试：${reason}`);
+
+  if (pidFromFile && isProcessAlive(pidFromFile)) {
+    killProcessTree(pidFromFile);
+  }
+
+  for (const processId of listOwnedPostgresProcessIds()) {
+    if (processId !== pidFromFile) {
+      killProcessTree(processId);
+    }
+  }
+
+  if (existsSync(PID_FILE)) {
+    rmSync(PID_FILE, { force: true });
+  }
+
+  sleepMs(1200);
+}
+
+async function runPgCtlStartWithTimeoutTolerance(diagnosticsLabel) {
+  try {
+    runBinary(postgresBinaryModule.pg_ctl, [
+      'start',
+      '-D',
+      DATA_DIR,
+      '-l',
+      LOG_FILE,
+      '-w',
+      '-o',
+      `-h ${postgresHost} -p ${postgresPort}`,
+    ], {
+      diagnosticsLabel,
+    });
+  } catch (error) {
+    if (isStartupTimeoutError(error) && await isDatabaseReachable()) {
+      console.warn('[CampusFit DB] pg_ctl start 超时，但数据库已经可连接，按启动成功继续。');
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function buildStartupDiagnostics(stage) {
@@ -184,34 +387,37 @@ async function ensureInitialised() {
 async function startServer() {
   await ensureInitialised();
 
-  if (await isDatabaseReachable()) {
+  const databaseReachable = await isDatabaseReachable();
+  const pidFileExists = existsSync(PID_FILE);
+  const pidFromFile = readPostmasterPid();
+  const pidAlive = isProcessAlive(pidFromFile);
+  const pgCtlThinksRunning = isPgCtlStatusRunning();
+
+  if (databaseReachable) {
     console.log(`[CampusFit DB] PostgreSQL 已在 ${postgresHost}:${postgresPort} 运行。`);
     return;
+  }
+
+  if (shouldRecoverStaleServerState({
+    databaseReachable,
+    pgCtlThinksRunning,
+    pidFileExists,
+    pidAlive,
+  })) {
+    repairStaleServerState(
+      `reachable=${databaseReachable}; pg_ctl=${pgCtlThinksRunning}; pidFile=${pidFileExists}; pidAlive=${pidAlive}`,
+    );
   }
 
   ensureDirectory(dirname(LOG_FILE));
   console.log(`[CampusFit DB] 尝试拉起本地 PostgreSQL：${postgresHost}:${postgresPort}`);
 
   try {
-    runBinary(postgresBinaryModule.pg_ctl, [
-      'start',
-      '-D',
-      DATA_DIR,
-      '-l',
-      LOG_FILE,
-      '-w',
-      '-o',
-      `-h ${postgresHost} -p ${postgresPort}`,
-    ], {
-      diagnosticsLabel: 'pg_ctl start',
-    });
+    await runPgCtlStartWithTimeoutTolerance('pg_ctl start');
   } catch (error) {
-    if (error instanceof Error && error.message.includes('ETIMEDOUT')) {
-      if (await isDatabaseReachable()) {
-        console.warn('[CampusFit DB] pg_ctl start 已超时，但数据库已经可连接，按启动成功继续。');
-      } else {
-        throw error;
-      }
+    if (error instanceof Error && isRecoverableStartupFailure(error.message)) {
+      repairStaleServerState(error.message);
+      await runPgCtlStartWithTimeoutTolerance('pg_ctl start retry');
     } else {
       throw error;
     }
@@ -274,26 +480,30 @@ function resetDataDir() {
   console.log('[CampusFit DB] 本地 PostgreSQL 数据目录已清理。');
 }
 
-const command = process.argv[2] ?? 'status';
+export async function main(command = process.argv[2] ?? 'status') {
+  switch (command) {
+    case 'start':
+      await startServer();
+      break;
+    case 'stop':
+      stopServer();
+      break;
+    case 'status':
+      printStatus();
+      break;
+    case 'ensure-db':
+      await ensureDatabase();
+      break;
+    case 'reset':
+      resetDataDir();
+      break;
+    default:
+      console.error(`不支持的命令：${command}`);
+      console.error('可用命令：start | stop | status | ensure-db | reset');
+      process.exit(1);
+  }
+}
 
-switch (command) {
-  case 'start':
-    await startServer();
-    break;
-  case 'stop':
-    stopServer();
-    break;
-  case 'status':
-    printStatus();
-    break;
-  case 'ensure-db':
-    await ensureDatabase();
-    break;
-  case 'reset':
-    resetDataDir();
-    break;
-  default:
-    console.error(`不支持的命令：${command}`);
-    console.error('可用命令：start | stop | status | ensure-db | reset');
-    process.exit(1);
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  await main();
 }

@@ -5,6 +5,19 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private isMissingRevokedTokensTableError(error: unknown) {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const code = 'code' in error ? error.code : undefined;
+    const meta = 'meta' in error ? error.meta : undefined;
+    const table =
+      meta && typeof meta === 'object' && 'table' in meta && typeof meta.table === 'string' ? meta.table : undefined;
+
+    return code === 'P2021' && table === 'public.revoked_tokens';
+  }
+
   findAccountByOpenId(provider: string, openId: string) {
     return this.prisma.authAccount.findUnique({
       where: {
@@ -46,5 +59,55 @@ export class AuthRepository {
         authAccounts: true,
       },
     });
+  }
+
+  async createRevokedToken(params: {
+    tokenId: string;
+    subject: string;
+    tokenType: string;
+    expiresAt: Date;
+  }) {
+    try {
+      return await this.prisma.revokedToken.upsert({
+        where: {
+          tokenId: params.tokenId,
+        },
+        update: {
+          subject: params.subject,
+          tokenType: params.tokenType,
+          expiresAt: params.expiresAt,
+        },
+        create: {
+          tokenId: params.tokenId,
+          subject: params.subject,
+          tokenType: params.tokenType,
+          expiresAt: params.expiresAt,
+        },
+      });
+    } catch (error) {
+      if (this.isMissingRevokedTokensTableError(error)) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  }
+
+  async isTokenRevoked(tokenId: string) {
+    try {
+      const record = await this.prisma.revokedToken.findUnique({
+        where: {
+          tokenId,
+        },
+      });
+
+      return Boolean(record);
+    } catch (error) {
+      if (this.isMissingRevokedTokensTableError(error)) {
+        return false;
+      }
+
+      throw error;
+    }
   }
 }

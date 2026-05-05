@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "npm --prefix ../../packages/rule-engine run build",
+    "predev": "npm run prisma:generate && npm --prefix ../../packages/rule-engine run build",
     "prebuild": "npm run prisma:generate && npm --prefix ../../packages/rule-engine run build",
     "prestart": "npm run prisma:generate && npm --prefix ../../packages/rule-engine run build",
-    "pretest": "npm --prefix ../../packages/rule-engine run build",
+    "pretest": "npm run prisma:generate && npm --prefix ../../packages/rule-engine run build",
     "dev": "ts-node src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/apps/api/src/main.js",

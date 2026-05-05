@@ -52,11 +52,16 @@ function New-DevJwtSecret {
   return ([guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N'))
 }
 
+function New-DevServiceToken {
+  return ([guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N'))
+}
+
 function New-DevAdminPassword {
   return "Dev!" + [guid]::NewGuid().ToString('N').Substring(0, 16) + "9a"
 }
 
 $generatedJwtSecret = $false
+$generatedAiServiceAuthToken = $false
 $generatedAdminPassword = $false
 
 $apiHost = Get-EnvValue -Key 'API_HOST' -Fallback '127.0.0.1'
@@ -66,6 +71,7 @@ $aiHost = Get-EnvValue -Key 'AI_SERVICE_HOST' -Fallback '127.0.0.1'
 $aiPort = [int](Get-EnvValue -Key 'AI_SERVICE_PORT' -Fallback '8001')
 $nodeEnv = Get-EnvValue -Key 'NODE_ENV' -Fallback 'development'
 $jwtSecret = Get-EnvValue -Key 'JWT_SECRET' -Fallback ''
+$aiServiceAuthToken = Get-EnvValue -Key 'AI_SERVICE_AUTH_TOKEN' -Fallback ''
 $databaseUrl = Get-EnvValue -Key 'DATABASE_URL' -Fallback "postgresql://campusfit:campusfit_dev@127.0.0.1:5432/campusfit_ai"
 $postgresHost = Get-EnvValue -Key 'POSTGRES_HOST' -Fallback '127.0.0.1'
 $postgresPort = Get-EnvValue -Key 'POSTGRES_PORT' -Fallback '5432'
@@ -87,6 +93,16 @@ if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
   $generatedJwtSecret = $true
 }
 
+if ([string]::IsNullOrWhiteSpace($aiServiceAuthToken)) {
+  $aiServiceAuthToken = New-DevServiceToken
+  $generatedAiServiceAuthToken = $true
+}
+
+if ($aiServiceAuthToken -eq $jwtSecret) {
+  $aiServiceAuthToken = New-DevServiceToken
+  $generatedAiServiceAuthToken = $true
+}
+
 if ([string]::IsNullOrWhiteSpace($adminPassword)) {
   $adminPassword = New-DevAdminPassword
   $generatedAdminPassword = $true
@@ -99,6 +115,7 @@ Set-ProcessEnvValue -Key 'WEB_PORT' -Value "$webPort"
 Set-ProcessEnvValue -Key 'AI_SERVICE_HOST' -Value $aiHost
 Set-ProcessEnvValue -Key 'AI_SERVICE_PORT' -Value "$aiPort"
 Set-ProcessEnvValue -Key 'AI_SERVICE_BASE_URL' -Value $aiServiceBaseUrl
+Set-ProcessEnvValue -Key 'AI_SERVICE_AUTH_TOKEN' -Value $aiServiceAuthToken
 Set-ProcessEnvValue -Key 'JWT_SECRET' -Value $jwtSecret
 Set-ProcessEnvValue -Key 'DATABASE_URL' -Value $databaseUrl
 Set-ProcessEnvValue -Key 'POSTGRES_HOST' -Value $postgresHost
@@ -282,7 +299,8 @@ function Ensure-BuildArtifacts {
   param(
     [string]$ServiceName,
     [string]$Workdir,
-    [string]$ArtifactPath
+    [string]$ArtifactPath,
+    [string]$BuildCommand = 'npm.cmd run build'
   )
 
   if ((-not $Rebuild) -and (-not (Test-RebuildRequired -Workdir $Workdir -ArtifactPath $ArtifactPath))) {
@@ -292,7 +310,7 @@ function Ensure-BuildArtifacts {
   Write-Host "[$ServiceName] Preparing build artifacts..." -ForegroundColor Cyan
   Push-Location $Workdir
   try {
-    & npm.cmd run build
+    & cmd.exe /c $BuildCommand
     if ($LASTEXITCODE -ne 0) {
       throw "$ServiceName build failed."
     }
@@ -325,7 +343,9 @@ function Start-ManagedService {
     [int]$Port,
     [string]$HealthUrl,
     [string]$DesiredDataMode,
-    [string[]]$WatchFilePaths
+    [string[]]$WatchFilePaths,
+    [int]$StartupRetries = 40,
+    [int]$StartupDelaySeconds = 1
   )
 
   if (Test-HttpOk -Url $HealthUrl) {
@@ -366,7 +386,7 @@ function Start-ManagedService {
 
   Write-Host "[$ServiceName] Starting..." -ForegroundColor Cyan
   Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', "cd /d `"$Workdir`" && $StartupCommand" -WindowStyle Minimized | Out-Null
-  Wait-HttpReady -ServiceName $ServiceName -Url $HealthUrl
+  Wait-HttpReady -ServiceName $ServiceName -Url $HealthUrl -Retries $StartupRetries -DelaySeconds $StartupDelaySeconds
 }
 
 $apiWorkdir = Join-Path $root 'apps/api'
@@ -379,11 +399,11 @@ if (Get-ListeningProcessId -Port $apiPort) {
 
 Ensure-LocalDatabase
 Ensure-BuildArtifacts -ServiceName 'API' -Workdir $apiWorkdir -ArtifactPath (Join-Path $apiWorkdir 'dist/apps/api/src/main.js')
-Ensure-BuildArtifacts -ServiceName 'Web' -Workdir $webWorkdir -ArtifactPath (Join-Path $webWorkdir '.next/BUILD_ID')
+Ensure-BuildArtifacts -ServiceName 'Web' -Workdir $webWorkdir -ArtifactPath (Join-Path $webWorkdir '.next/BUILD_ID') -BuildCommand 'set NODE_ENV=production && npm.cmd run build'
 
 Start-ManagedService -ServiceName 'AI' -Workdir $aiWorkdir -StartupCommand "python -m uvicorn app.main:app --host $aiHost --port $aiPort" -Port $aiPort -HealthUrl $aiHealthUrl -WatchFilePaths @($envFile, $aiWorkdir)
 Start-ManagedService -ServiceName 'API' -Workdir $apiWorkdir -StartupCommand 'set API_DATA_MODE=database && node dist/apps/api/src/main.js' -Port $apiPort -HealthUrl $apiHealthUrl -DesiredDataMode 'database'
-Start-ManagedService -ServiceName 'Web' -Workdir $webWorkdir -StartupCommand 'npm.cmd run start' -Port $webPort -HealthUrl $webUrl -WatchFilePaths @($envFile, (Join-Path $webWorkdir '.next/BUILD_ID'))
+Start-ManagedService -ServiceName 'Web' -Workdir $webWorkdir -StartupCommand 'set NODE_ENV=production && npm.cmd run start' -Port $webPort -HealthUrl $webUrl -WatchFilePaths @($envFile, (Join-Path $webWorkdir '.next/BUILD_ID')) -StartupRetries 90
 
 function Open-LocalUrl {
   param([string]$Url)
@@ -412,6 +432,10 @@ Write-Host "- Swagger: $docsUrl"
 
 if ($generatedJwtSecret) {
   Write-Host "- JWT_SECRET: auto-generated for this run" -ForegroundColor Yellow
+}
+
+if ($generatedAiServiceAuthToken) {
+  Write-Host "- AI_SERVICE_AUTH_TOKEN: auto-generated for this run" -ForegroundColor Yellow
 }
 
 if ($generatedAdminPassword) {

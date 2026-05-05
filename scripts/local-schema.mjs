@@ -97,10 +97,19 @@ CREATE TABLE IF NOT EXISTS food_library_items (
 
 ALTER TABLE users ALTER COLUMN avatar_url DROP NOT NULL;
 ALTER TABLE users ALTER COLUMN avatar_url DROP DEFAULT;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS preferred_training_source VARCHAR(16) NOT NULL DEFAULT 'system';
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS training_cycle_start_focus VARCHAR(16);
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS training_cycle_reset_at TIMESTAMPTZ;
 ALTER TABLE check_ins ALTER COLUMN note DROP NOT NULL;
 ALTER TABLE check_ins ALTER COLUMN note DROP DEFAULT;
+ALTER TABLE user_training_template_items
+  ADD COLUMN IF NOT EXISTS rep_text VARCHAR(64),
+  ADD COLUMN IF NOT EXISTS source_type VARCHAR(16) NOT NULL DEFAULT 'standard',
+  ADD COLUMN IF NOT EXISTS raw_input TEXT;
+ALTER TABLE daily_training_override_items
+  ADD COLUMN IF NOT EXISTS rep_text VARCHAR(64),
+  ADD COLUMN IF NOT EXISTS source_type VARCHAR(16) NOT NULL DEFAULT 'standard',
+  ADD COLUMN IF NOT EXISTS raw_input TEXT;
 `;
 
 const client = new Client({

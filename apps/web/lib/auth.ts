@@ -4,6 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://jianshenap
 const SESSION_STORAGE_KEY = 'campusfit-web-session';
 
 let cachedSession: LoginSession | null = null;
+let refreshInFlight: Promise<LoginSession | null> | null = null;
 
 function readSessionFromStorage() {
   if (typeof window === 'undefined') {
@@ -41,10 +42,6 @@ export function getStoredSession() {
     return null;
   }
 
-  if (cachedSession) {
-    return cachedSession;
-  }
-
   cachedSession = readSessionFromStorage();
   return cachedSession;
 }
@@ -66,6 +63,53 @@ export function clearStoredSession() {
     method: 'POST',
     credentials: 'include',
   }).catch(() => undefined);
+}
+
+export async function refreshStoredSession() {
+  const current = getStoredSession();
+  if (!current) {
+    return null;
+  }
+
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CampusFit-CSRF': '1',
+        },
+      });
+
+      let payload: { code?: string; data?: LoginSession } | null = null;
+      try {
+        payload = (await response.json()) as { code?: string; data?: LoginSession };
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || payload?.code !== 'OK' || !payload.data) {
+        if (response.status === 401 || response.status === 403) {
+          clearStoredSession();
+        }
+        return null;
+      }
+
+      setStoredSession(payload.data);
+      return payload.data;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 export function patchStoredSession(partial: Partial<LoginSession>) {

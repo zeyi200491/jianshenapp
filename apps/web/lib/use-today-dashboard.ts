@@ -12,7 +12,6 @@ import {
   removeTrainingOverride,
   resetTrainingCycle,
   sendConversationMessage,
-  type ActiveTrainingSource,
   type CurrentUserPayload,
   type OnboardingPayload,
   type TodayPayload,
@@ -302,7 +301,7 @@ export function useTodayDashboard({
         if (reloaded) {
           await generateAiGuide(reloaded);
         }
-        setFocusMessage('已恢复系统生成的今日训练方案。');
+        setFocusMessage('已恢复系统生成的今日训练方案，并将默认来源切回系统方案。');
       } catch (requestError) {
         setError(
           describeUserFacingError(requestError, {
@@ -449,7 +448,7 @@ export function useTodayDashboard({
     templatePreview,
     selectedTemplateWeekday,
     isPending,
-    activeTrainingSource: (payload?.activeTrainingSource ?? 'system') as ActiveTrainingSource,
+    activeTrainingSource: payload?.activeTrainingSource ?? 'system',
     systemTrainingPlan: payload?.systemTrainingPlan ?? null,
     isCutTarget: currentUser?.profile?.targetType === 'cut',
     isStrengthTarget: currentUser?.profile?.targetType !== 'cut',

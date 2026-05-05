@@ -8,5 +8,6 @@ import { PlansModule } from '../plans/plans.module';
   imports: [PlansModule],
   controllers: [ProfilesController],
   providers: [ProfilesService, ProfilesRepository],
+  exports: [ProfilesService, ProfilesRepository],
 })
 export class ProfilesModule {}

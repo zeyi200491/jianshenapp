@@ -96,11 +96,22 @@ describe('TrainingTemplatesService', () => {
     };
   }
 
-  function createService(repository = createRepository(), previewStore = createPreviewStore()) {
+  function createProfilesService() {
+    return {
+      setPreferredTrainingSource: jest.fn(),
+    };
+  }
+
+  function createService(
+    repository = createRepository(),
+    previewStore = createPreviewStore(),
+    profilesService = createProfilesService(),
+  ) {
     return {
       repository,
       previewStore,
-      service: new TrainingTemplatesService(repository, previewStore),
+      profilesService,
+      service: new TrainingTemplatesService(repository, previewStore, profilesService),
     };
   }
 
@@ -191,6 +202,34 @@ describe('TrainingTemplatesService', () => {
     expect(result.name).toBe('Updated Template');
   });
 
+  it('enables template and persists preferred training source as template', async () => {
+    const { repository, profilesService, service } = createService();
+    repository.findByIdAndUserId.mockResolvedValue(
+      createTemplate({
+        id: 'template-1',
+        status: 'active',
+        isEnabled: false,
+      }),
+    );
+    repository.setEnabledTemplate.mockResolvedValue(
+      createTemplate({
+        id: 'template-1',
+        status: 'active',
+        isEnabled: true,
+      }),
+    );
+    profilesService.setPreferredTrainingSource.mockResolvedValue({
+      userId: 'user-1',
+      preferredTrainingSource: 'template',
+    });
+
+    const result = await service.enable('user-1', 'template-1');
+
+    expect(repository.setEnabledTemplate).toHaveBeenCalledWith('user-1', 'template-1');
+    expect(profilesService.setPreferredTrainingSource).toHaveBeenCalledWith('user-1', 'template');
+    expect(result.isEnabled).toBe(true);
+  });
+
   it('previews the natural weekday when weekday is omitted', async () => {
     const { repository, service } = createService();
     repository.findEnabledByUserId.mockResolvedValue(
@@ -220,18 +259,76 @@ describe('TrainingTemplatesService', () => {
     expect(result.day.title).toBe('Monday Recovery');
   });
 
+  it('returns the enabled template preview for today source using the natural weekday', async () => {
+    const { repository, service } = createService();
+    repository.findEnabledByUserId.mockResolvedValue(
+      createTemplate({
+        days: createWeek().map((day) =>
+          day.weekday === 'thursday'
+            ? {
+                ...day,
+                title: 'Thursday Lower',
+                splitType: 'lower',
+                durationMinutes: 75,
+                intensityLevel: 'high',
+              }
+            : day,
+        ),
+      }),
+    );
+
+    const result = await service.previewForTodaySource('user-1', new Date('2026-04-30T00:00:00.000Z'));
+
+    expect(repository.findEnabledByUserId).toHaveBeenCalledWith('user-1');
+    expect(result).toMatchObject({
+      templateId: 'template-1',
+      templateName: 'My Weekly Template',
+      date: '2026-04-30',
+      weekday: 'thursday',
+    });
+    expect(result.day.title).toBe('Thursday Lower');
+  });
+
+  it('returns null for today source when no enabled template exists', async () => {
+    const { repository, service } = createService();
+    repository.findEnabledByUserId.mockResolvedValue(null);
+
+    const result = await service.previewForTodaySource('user-1', new Date('2026-04-30T00:00:00.000Z'));
+
+    expect(result).toBeNull();
+  });
+
   it('imports preview text and returns a preview token', async () => {
     const { repository, previewStore, service } = createService();
     repository.findByIdAndUserId.mockResolvedValue(createTemplate());
-
     const result = await service.importPreview('user-1', {
       templateId: 'template-1',
-      rawText: '周二 胸肩三头\n杠铃卧推 8×4',
+      rawText: '\u5468\u4e8c \u80f8\u80a9\u4e09\u5934\n\u6760\u94c3\u5367\u63a8 8x4',
     });
+
 
     expect(previewStore.save).toHaveBeenCalledWith(
       'template-1',
       '2026-04-29T10:00:00.000Z',
+      expect.objectContaining({
+        summary: expect.objectContaining({ detectedDays: 1 }),
+      }),
+    );
+    expect(result.previewToken).toBe('preview-token');
+    expect(result.parsedDays[0].weekday).toBe('tuesday');
+  });
+
+  it('imports preview text without requiring an existing saved template', async () => {
+    const { repository, previewStore, service } = createService();
+
+    const result = await service.importPreview('user-1', {
+      rawText: '\u5468\u4e8c \u80f8\u80a9\u4e09\u5934\n\u6760\u94c3\u5367\u63a8 8x4',
+    });
+
+    expect(repository.findByIdAndUserId).not.toHaveBeenCalled();
+    expect(previewStore.save).toHaveBeenCalledWith(
+      null,
+      null,
       expect.objectContaining({
         summary: expect.objectContaining({ detectedDays: 1 }),
       }),
@@ -249,15 +346,15 @@ describe('TrainingTemplatesService', () => {
           day.weekday === 'tuesday'
             ? {
                 ...day,
-                title: '胸肩三头',
+                title: '鑳歌偐涓夊ご',
                 items: [
                   createItem({
                     exerciseCode: 'free-text/barbell-bench-press',
-                    exerciseName: '杠铃卧推',
+                    exerciseName: '鏉犻搩鍗ф帹',
                     reps: '8',
                     repText: '8',
                     sourceType: 'free_text',
-                    rawInput: '杠铃卧推 8×4',
+                    rawInput: '鏉犻搩鍗ф帹 8脳4',
                   }),
                 ],
               }
@@ -278,14 +375,14 @@ describe('TrainingTemplatesService', () => {
         parsedDays: [
           {
             weekday: 'tuesday',
-            title: '胸肩三头',
+            title: '\u80f8\u80a9\u4e09\u5934',
             dayType: 'training',
             selectable: true,
             warnings: [],
             items: [
               {
-                rawLine: '杠铃卧推 8×4',
-                exerciseName: '杠铃卧推',
+                rawLine: '\u6760\u94c3\u5367\u63a8 8x4',
+                exerciseName: '\u6760\u94c3\u5367\u63a8',
                 matchedExerciseCode: null,
                 sets: 4,
                 reps: '8',
@@ -315,17 +412,17 @@ describe('TrainingTemplatesService', () => {
           dayType: 'training',
           items: [
             expect.objectContaining({
-              exerciseCode: 'free-text/杠铃卧推',
-              exerciseName: '杠铃卧推',
+              exerciseCode: 'free-text/\u6760\u94c3\u5367\u63a8',
+              exerciseName: '\u6760\u94c3\u5367\u63a8',
               sourceType: 'free_text',
               repText: '8',
-              rawInput: '杠铃卧推 8×4',
+              rawInput: '\u6760\u94c3\u5367\u63a8 8x4',
             }),
           ],
         }),
       ],
     );
-    expect(result.days.find((day) => day.weekday === 'tuesday').title).toBe('胸肩三头');
+    expect(result.days.find((day) => day.weekday === 'tuesday').title).toBe('鑳歌偐涓夊ご');
   });
 
   it('rejects import apply when preview token is stale', async () => {

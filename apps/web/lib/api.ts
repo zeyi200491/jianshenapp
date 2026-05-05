@@ -20,12 +20,91 @@ type ApiEnvelope<T> = {
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://jianshenapp-api-production.up.railway.app/api/v1';
+const SESSION_STORAGE_KEY = 'campusfit-web-session';
+let refreshInFlight: Promise<LoginSession | null> | null = null;
 
 function isStateChangingRequest(method?: string) {
   return !['GET', 'HEAD', 'OPTIONS'].includes((method ?? 'GET').toUpperCase());
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}, token?: string) {
+function readSessionFromStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as LoginSession;
+  } catch {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeSessionToStorage(session: LoginSession | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (!session) {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+async function refreshSessionInRequestLayer() {
+  if (!readSessionFromStorage()) {
+    return null;
+  }
+
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CampusFit-CSRF': '1',
+        },
+      });
+
+      let payload: ApiEnvelope<LoginSession> | null = null;
+      try {
+        payload = (await response.json()) as ApiEnvelope<LoginSession>;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || payload?.code !== 'OK' || !payload.data) {
+        if (response.status === 401 || response.status === 403) {
+          writeSessionToStorage(null);
+        }
+        return null;
+      }
+
+      writeSessionToStorage(payload.data);
+      return payload.data;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+async function requestJson<T>(path: string, init: RequestInit = {}, token?: string, allowRefresh = true) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     cache: 'no-store',
@@ -37,6 +116,13 @@ async function requestJson<T>(path: string, init: RequestInit = {}, token?: stri
       ...(init.headers ?? {}),
     },
   });
+
+  if (response.status === 401 && token && allowRefresh) {
+    const refreshedSession = await refreshSessionInRequestLayer();
+    if (refreshedSession?.accessToken) {
+      return requestJson<T>(path, init, refreshedSession.accessToken, false);
+    }
+  }
 
   let payload: ApiEnvelope<T> | null = null;
   try {
@@ -56,7 +142,8 @@ export type TrainingFocus = 'push' | 'pull' | 'legs';
 export type MovementPattern = 'compound' | 'isolation' | 'recovery';
 export type RestRuleSource = 'system' | 'manual';
 export type IntensityLevel = 'low' | 'medium' | 'high';
-export type ActiveTrainingSource = 'system' | 'user_override';
+export type ActiveTrainingSource = 'system' | 'user_override' | 'template';
+export type PreferredTrainingSource = 'system' | 'template';
 export type TrainingTemplateStatus = 'active' | 'archived';
 export type TrainingTemplateWeekday =
   | 'monday'
@@ -103,6 +190,7 @@ export type CurrentUserPayload = {
   status: string;
   hasCompletedOnboarding: boolean;
   profile: (OnboardingPayload & {
+    preferredTrainingSource: PreferredTrainingSource;
     onboardingCompletedAt: string | null;
   }) | null;
 };
@@ -603,7 +691,7 @@ export async function previewTrainingTemplate(
 
 export async function importTrainingTemplatePreview(
   token: string,
-  payload: { templateId: string; rawText: string },
+  payload: { templateId?: string; rawText: string },
 ) {
   return requestJson<TrainingTemplateImportPreview>(
     '/users/me/training-templates/import-preview',

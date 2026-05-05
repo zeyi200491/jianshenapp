@@ -71,6 +71,7 @@ export class PlansService {
       dietPreferences: profile.dietPreferences as string[],
       dietRestrictions: profile.dietRestrictions as string[],
       supplementOptIn: profile.supplementOptIn,
+      preferredTrainingSource: (profile.preferredTrainingSource ?? 'system') as RuleProfileInput['preferredTrainingSource'],
     };
   }
 
@@ -165,4 +166,3 @@ export class PlansService {
     return this.generateForDate(userId, planDate, true);
   }
 }
-

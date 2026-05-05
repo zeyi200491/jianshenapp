@@ -5,6 +5,8 @@ import { ProfilesRepository } from './profiles.repository';
 import type { OnboardingDto } from './dto/onboarding.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 
+type PreferredTrainingSource = 'system' | 'template';
+
 @Injectable()
 export class ProfilesService {
   constructor(private readonly profilesRepository: ProfilesRepository) {}
@@ -28,6 +30,16 @@ export class ProfilesService {
       await this.profilesRepository.createBodyMetric(userId, dto.currentWeightKg, 'manual', new Date());
     }
 
+    return serializeValue(profile);
+  }
+
+  async setPreferredTrainingSource(userId: string, preferredTrainingSource: PreferredTrainingSource) {
+    const existing = await this.profilesRepository.findProfileByUserId(userId);
+    if (!existing) {
+      throw new AppException('CONFLICT', '用户尚未完成建档', 409);
+    }
+
+    const profile = await this.profilesRepository.setPreferredTrainingSource(userId, preferredTrainingSource);
     return serializeValue(profile);
   }
 

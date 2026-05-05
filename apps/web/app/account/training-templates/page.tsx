@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ApiError,
-  applyTrainingTemplateImport,
   createTrainingTemplate,
   enableTrainingTemplate,
   fetchTrainingTemplateDetail,
@@ -14,7 +13,6 @@ import {
   type TrainingTemplateDetail,
   type TrainingTemplateImportPreview,
   type TrainingTemplatePayload,
-  type TrainingTemplateWeekday,
   updateTrainingTemplate,
 } from '@/lib/api';
 import { clearStoredSession, getStoredSession, setStoredSessionOnboardingStatus } from '@/lib/auth';
@@ -26,68 +24,31 @@ import {
 } from '@/components/web/training-templates/training-template-editor';
 import { TrainingTemplateImportDrawer } from '@/components/web/training-templates/training-template-import-drawer';
 import { TrainingTemplateList } from '@/components/web/training-templates/training-template-list';
+import { buildDraftFromImportPreview } from '@/lib/training-template-import-draft';
+import {
+  buildEmptyTrainingTemplateDraft,
+  DEFAULT_TRAINING_DURATION_MINUTES,
+  DEFAULT_TRAINING_INTENSITY_LEVEL,
+  DEFAULT_TRAINING_REST_SECONDS,
+  DEFAULT_TRAINING_SPLIT_TYPE,
+  normalizeTrainingTemplateDraftForSave,
+  TRAINING_TEMPLATE_WEEKDAY_ORDER,
+} from '@/lib/training-template-draft';
 import { describeUserFacingError } from '@/lib/user-facing-error';
 
 type DraftItem = TrainingTemplateDraft['days'][number]['items'][number];
 
-const weekdayOrder: TrainingTemplateWeekday[] = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
-
 const importExampleText = `周一 休息
 
-周二 胸 肩 三头
+周二 胸肩三头
 杠铃卧推 8×4
 自重臂屈伸 8×3（下胸）
 龙门架绳索下压 12×3（三头外侧）
 
-周三 背 二头
+周三 背二头
 引体向上 8×4
 宽距高位下拉 10×3
 二头超级组（站姿+坐姿 10+10×3）`;
-
-function createDefaultItem(): DraftItem {
-  return {
-    exerciseCode: '',
-    exerciseName: '',
-    sets: 3,
-    reps: '10-12',
-    repText: '10-12',
-    sourceType: 'standard',
-    rawInput: null,
-    restSeconds: 90,
-    notes: '',
-  };
-}
-
-function buildEmptyDraft(): TrainingTemplateDraft {
-  return {
-    name: '我的周训练模板',
-    status: 'active',
-    isEnabled: false,
-    isDefault: false,
-    notes: '',
-    days: weekdayOrder.map((weekday, index) => {
-      const isRestDay = index === 2 || index === 6;
-      return {
-        weekday,
-        dayType: isRestDay ? 'rest' : 'training',
-        title: isRestDay ? '恢复日' : `训练日 ${index + 1}`,
-        splitType: isRestDay ? null : 'push_pull_legs',
-        durationMinutes: isRestDay ? null : 45,
-        intensityLevel: isRestDay ? null : 'medium',
-        notes: '',
-        items: isRestDay ? [] : [createDefaultItem()],
-      };
-    }),
-  };
-}
 
 function normalizeError(error: unknown) {
   return describeUserFacingError(error, {
@@ -98,36 +59,38 @@ function normalizeError(error: unknown) {
 }
 
 function validateDraft(draft: TrainingTemplateDraft) {
-  if (!draft.name.trim()) {
+  const normalizedDraft = normalizeTrainingTemplateDraftForSave(draft);
+
+  if (!normalizedDraft.name.trim()) {
     return '模板名称不能为空。';
   }
 
-  for (const day of draft.days) {
+  for (const day of normalizedDraft.days) {
     if (!day.title.trim()) {
       return `${day.weekday} 的标题不能为空。`;
     }
+
     if (day.dayType === 'rest') {
       continue;
     }
+
     if (!day.splitType?.trim()) {
-      return `${day.title} 还没有填写 splitType。`;
+      return `${day.title} 还没有填写训练类型。`;
     }
-    if (!day.durationMinutes) {
-      return `${day.title} 还没有填写训练时长。`;
-    }
+
     if (!day.intensityLevel) {
       return `${day.title} 还没有选择训练强度。`;
     }
+
     if (day.items.length === 0) {
       return `${day.title} 至少要有 1 个训练动作。`;
     }
+
     for (const item of day.items) {
       if (!item.exerciseName.trim()) {
         return `${day.title} 里有动作名称为空。`;
       }
-      if (!item.exerciseCode.trim()) {
-        return `${day.title} 里有动作编码为空。`;
-      }
+
       if (!item.reps.trim()) {
         return `${day.title} 里有动作次数为空。`;
       }
@@ -176,22 +139,36 @@ function toDraft(detail: TrainingTemplateDetail): TrainingTemplateDraft {
 }
 
 function toPayload(draft: TrainingTemplateDraft): TrainingTemplatePayload {
+  const normalizedDraft = normalizeTrainingTemplateDraftForSave(draft);
+
   return {
-    name: draft.name,
-    status: draft.status,
-    isEnabled: draft.isEnabled,
-    isDefault: draft.isDefault,
-    notes: draft.notes,
-    days: draft.days.map((day) => ({
+    name: normalizedDraft.name,
+    status: normalizedDraft.status,
+    isEnabled: normalizedDraft.isEnabled,
+    isDefault: normalizedDraft.isDefault,
+    notes: normalizedDraft.notes,
+    days: normalizedDraft.days.map((day) => ({
       ...day,
       items: day.items.map((item) => ({
         ...item,
         repText: item.repText ?? item.reps,
-        sourceType: item.sourceType ?? 'standard',
+        sourceType: item.sourceType === 'free_text' ? 'free_text' : 'standard',
         rawInput: item.rawInput ?? null,
       })),
     })),
-  } as TrainingTemplatePayload;
+  };
+}
+
+function hasUnsavedDraftChanges(draft: TrainingTemplateDraft | null, dirty: boolean) {
+  return Boolean(draft && dirty);
+}
+
+function confirmImportReplacement(draft: TrainingTemplateDraft | null, dirty: boolean) {
+  if (!hasUnsavedDraftChanges(draft, dirty)) {
+    return true;
+  }
+
+  return window.confirm('继续后会替换当前未保存内容，是否继续？');
 }
 
 export default function TrainingTemplatesPage() {
@@ -199,6 +176,7 @@ export default function TrainingTemplatesPage() {
   const [templates, setTemplates] = useState<TrainingTemplateDetail[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [draft, setDraft] = useState<TrainingTemplateDraft | null>(null);
+  const [draftDirty, setDraftDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -206,18 +184,24 @@ export default function TrainingTemplatesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importRawText, setImportRawText] = useState('');
   const [importPreview, setImportPreview] = useState<TrainingTemplateImportPreview | null>(null);
-  const [importSelectedWeekdays, setImportSelectedWeekdays] = useState<TrainingTemplateWeekday[]>([]);
   const [importError, setImportError] = useState('');
   const [importParsing, setImportParsing] = useState(false);
-  const [importApplying, setImportApplying] = useState(false);
 
   function resetImportState(options?: { keepText?: boolean }) {
     setImportPreview(null);
-    setImportSelectedWeekdays([]);
     setImportError('');
     if (!options?.keepText) {
       setImportRawText('');
     }
+  }
+
+  function applyDraft(nextDraft: TrainingTemplateDraft | null, dirty = false) {
+    setDraft(nextDraft);
+    setDraftDirty(dirty);
+  }
+
+  function handleDraftChange(nextDraft: TrainingTemplateDraft) {
+    applyDraft(nextDraft, true);
   }
 
   async function loadTemplates(nextSelectedId?: string | null) {
@@ -237,23 +221,26 @@ export default function TrainingTemplatesPage() {
       const targetId = nextSelectedId ?? selectedTemplateId ?? list[0]?.id ?? null;
       setSelectedTemplateId(targetId);
 
-      if (targetId) {
-        const detail = await fetchTrainingTemplateDetail(session.accessToken, targetId);
-        setDraft(toDraft(detail));
-      } else {
-        setDraft(null);
+      if (!targetId) {
+        applyDraft(null, false);
+        return;
       }
+
+      const detail = await fetchTrainingTemplateDetail(session.accessToken, targetId);
+      applyDraft(toDraft(detail), false);
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.status === 401) {
         clearStoredSession();
         router.replace('/login');
         return;
       }
+
       if (loadError instanceof ApiError && loadError.code === 'CONFLICT') {
         setStoredSessionOnboardingStatus(false);
         router.replace('/onboarding');
         return;
       }
+
       setError(normalizeError(loadError));
     } finally {
       setLoading(false);
@@ -275,12 +262,23 @@ export default function TrainingTemplatesPage() {
     resetImportState();
     setSelectedTemplateId(templateId);
     setError('');
+    setMessage('');
+
     try {
       const detail = await fetchTrainingTemplateDetail(session.accessToken, templateId);
-      setDraft(toDraft(detail));
+      applyDraft(toDraft(detail), false);
     } catch (loadError) {
       setError(normalizeError(loadError));
     }
+  }
+
+  function handleCreateTemplate() {
+    setImportOpen(false);
+    resetImportState();
+    setSelectedTemplateId(null);
+    applyDraft(buildEmptyTrainingTemplateDraft(), false);
+    setMessage('');
+    setError('');
   }
 
   async function handleSaveDraft() {
@@ -289,6 +287,7 @@ export default function TrainingTemplatesPage() {
       router.replace('/login');
       return;
     }
+
     if (!draft) {
       return;
     }
@@ -327,6 +326,7 @@ export default function TrainingTemplatesPage() {
 
     setMessage('');
     setError('');
+
     try {
       await enableTrainingTemplate(session.accessToken, templateId);
       await loadTemplates(templateId);
@@ -345,6 +345,7 @@ export default function TrainingTemplatesPage() {
 
     setMessage('');
     setError('');
+
     try {
       await setDefaultTrainingTemplate(session.accessToken, templateId);
       await loadTemplates(templateId);
@@ -355,13 +356,14 @@ export default function TrainingTemplatesPage() {
   }
 
   function handleOpenImport() {
-    if (!draft?.id) {
-      setError('请先保存这套模板，再使用文字导入。');
+    if (!confirmImportReplacement(draft, draftDirty)) {
       return;
     }
 
+    setMessage('');
+    setError('');
+    resetImportState();
     setImportOpen(true);
-    setImportError('');
   }
 
   function handleCloseImport() {
@@ -372,28 +374,18 @@ export default function TrainingTemplatesPage() {
   function handleImportRawTextChange(value: string) {
     setImportRawText(value);
     setImportPreview(null);
-    setImportSelectedWeekdays([]);
     setImportError('');
   }
 
-  function handleToggleImportWeekday(weekday: TrainingTemplateWeekday) {
-    setImportSelectedWeekdays((current) =>
-      current.includes(weekday) ? current.filter((item) => item !== weekday) : [...current, weekday],
-    );
-  }
-
-  async function handleImportPreview() {
+  async function handleGenerateImportDraft() {
     const session = getStoredSession();
     if (!session) {
       router.replace('/login');
       return;
     }
-    if (!draft?.id) {
-      setImportError('请先保存这套模板，再使用文字导入。');
-      return;
-    }
+
     if (!importRawText.trim()) {
-      setImportError('先贴入训练文本，再开始解析。');
+      setImportError('请先粘贴训练文字，再生成草稿模板。');
       return;
     }
 
@@ -402,63 +394,38 @@ export default function TrainingTemplatesPage() {
 
     try {
       const preview = await importTrainingTemplatePreview(session.accessToken, {
-        templateId: draft.id,
+        templateId: draft?.id ?? selectedTemplateId ?? undefined,
         rawText: importRawText,
       });
+
+      const nextDraft = buildDraftFromImportPreview(preview, {
+        baseName: draft?.name ?? '训练模板',
+      });
+
       setImportPreview(preview);
-      setImportSelectedWeekdays(
-        preview.parsedDays.filter((day) => day.selectable).map((day) => day.weekday),
-      );
+      setSelectedTemplateId(null);
+      applyDraft(nextDraft, true);
+      setImportOpen(false);
+      resetImportState();
+
+      if (preview.summary.warningLines > 0 || preview.summary.blockingLines > 0) {
+        setMessage('草稿模板已生成，部分动作需要你手动补充。');
+      } else {
+        setMessage('已根据文本生成新的草稿模板，你现在可以继续调整后再保存。');
+      }
     } catch (requestError) {
       setImportPreview(null);
-      setImportSelectedWeekdays([]);
       setImportError(normalizeError(requestError));
     } finally {
       setImportParsing(false);
     }
   }
 
-  async function handleApplyImport() {
-    const session = getStoredSession();
-    if (!session) {
-      router.replace('/login');
-      return;
-    }
-    if (!draft?.id || !importPreview) {
-      setImportError('请先完成一次解析预览。');
-      return;
-    }
-    if (importSelectedWeekdays.length === 0) {
-      setImportError('至少勾选一天，再执行覆盖。');
-      return;
-    }
-
-    setImportApplying(true);
-    setImportError('');
-    setMessage('');
-    setError('');
-
-    try {
-      await applyTrainingTemplateImport(session.accessToken, draft.id, {
-        previewToken: importPreview.previewToken,
-        selectedWeekdays: importSelectedWeekdays,
-      });
-      setImportOpen(false);
-      resetImportState();
-      await loadTemplates(draft.id);
-      setMessage(`已更新 ${importSelectedWeekdays.length} 天训练模板。`);
-    } catch (requestError) {
-      setImportError(normalizeError(requestError));
-    } finally {
-      setImportApplying(false);
-    }
-  }
-
   return (
     <DashboardShell
       currentPath="/account"
-      sidebarHint="把你的长期周节奏先定下来，today 页面再负责按天执行。"
-      primaryCta={{ label: '返回今日页', href: '/today' }}
+      sidebarHint="先维护长期周模板，再按需要应用到 today 页的自然日训练。"
+      primaryCta={{ label: '返回 today 页', href: '/today' }}
       header={
         <section className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -487,14 +454,7 @@ export default function TrainingTemplatesPage() {
           templates={templates}
           selectedTemplateId={selectedTemplateId}
           onSelectTemplate={(templateId) => void handleSelectTemplate(templateId)}
-          onCreateTemplate={() => {
-            setImportOpen(false);
-            resetImportState();
-            setSelectedTemplateId(null);
-            setDraft(buildEmptyDraft());
-            setMessage('');
-            setError('');
-          }}
+          onCreateTemplate={handleCreateTemplate}
           onEnableTemplate={(templateId) => void handleEnableTemplate(templateId)}
           onSetDefaultTemplate={(templateId) => void handleSetDefaultTemplate(templateId)}
           disabled={saving}
@@ -502,32 +462,24 @@ export default function TrainingTemplatesPage() {
 
         <TrainingTemplateEditor
           draft={draft}
-          onChange={setDraft}
+          onChange={handleDraftChange}
           onSave={() => void handleSaveDraft()}
           onOpenImport={handleOpenImport}
-          disabled={saving || importParsing || importApplying}
-          importDisabled={!draft?.id}
-          importHint={
-            draft?.id
-              ? '支持把训练文本解析成周模板，确认后只覆盖勾选的周几。'
-              : '先保存这套模板，再用文字导入覆盖对应的周几。'
-          }
+          disabled={saving || importParsing}
+          importHint="文字导入会根据你粘贴的训练文字生成一份新的未保存草稿，调整后再手动保存。"
         />
       </section>
+
       <TrainingTemplateImportDrawer
         open={importOpen}
         templateName={draft?.name ?? '未命名模板'}
         rawText={importRawText}
         preview={importPreview}
         parsing={importParsing}
-        applying={importApplying}
         error={importError}
-        selectedWeekdays={importSelectedWeekdays}
         onClose={handleCloseImport}
         onRawTextChange={handleImportRawTextChange}
-        onPreview={() => void handleImportPreview()}
-        onToggleWeekday={handleToggleImportWeekday}
-        onApply={() => void handleApplyImport()}
+        onGenerateDraft={() => void handleGenerateImportDraft()}
         onUseExample={() => handleImportRawTextChange(importExampleText)}
       />
     </DashboardShell>

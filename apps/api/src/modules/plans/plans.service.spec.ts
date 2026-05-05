@@ -16,6 +16,7 @@ describe('PlansService', () => {
       dietPreferences: [],
       dietRestrictions: [],
       supplementOptIn: true,
+      preferredTrainingSource: 'system',
       onboardingCompletedAt: new Date('2026-04-01T00:00:00.000Z'),
       trainingCycleStartFocus: null,
       trainingCycleResetAt: null,
@@ -87,6 +88,17 @@ describe('PlansService', () => {
     expect(result.suggestedReset).toBe(false);
   });
 
+  it('returns preferredTrainingSource from the saved profile when building rule profile input', async () => {
+    const repository = createRepository({
+      preferredTrainingSource: 'template',
+    });
+    const service = new PlansService(repository);
+
+    const profile = await service.getRuleProfileInput('user-1');
+
+    expect(profile.preferredTrainingSource).toBe('template');
+  });
+
   it('suggests resetting the cycle after a long inactivity gap', async () => {
     const repository = createRepository(
       {
@@ -155,4 +167,3 @@ describe('PlansService', () => {
     expect(result.trainingPlan.splitType).not.toBe('cardio');
   });
 });
-

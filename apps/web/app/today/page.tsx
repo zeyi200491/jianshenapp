@@ -98,10 +98,8 @@ export default function TodayPage() {
     systemTrainingPlan,
     isCutTarget,
     isStrengthTarget,
-    handleRegenerate,
     handleGenerateTodayTraining,
     handleSelectTemplateWeekday,
-    handleApplyTemplateToToday,
     handleRestoreSystemTraining,
     handleProfileSubmit,
     generateAiGuide,
@@ -131,7 +129,8 @@ export default function TodayPage() {
   }
 
   const energyInsight = buildEnergyInsight(payload);
-  const isCardioPlan = isCutTarget || payload?.trainingPlan?.splitType === 'cardio';
+  const displayedTrainingPlan = payload?.activeTrainingPlan ?? payload?.trainingPlan ?? null;
+  const isCardioPlan = isCutTarget || displayedTrainingPlan?.splitType === 'cardio';
   const focusOptions = useMemo(
     () => buildFocusOptions(trainingFocusLabels, trainingFocusMeta),
     [],
@@ -189,7 +188,7 @@ export default function TodayPage() {
             />
 
             <TrainingPlanPanel
-              trainingPlan={payload.trainingPlan}
+              trainingPlan={displayedTrainingPlan}
               systemTrainingPlan={systemTrainingPlan}
               activeTrainingSource={activeTrainingSource}
               templatePreview={templatePreview}
@@ -200,10 +199,8 @@ export default function TodayPage() {
               focusOptions={focusOptions}
               onSelectFocus={setSelectedFocus}
               onSelectTemplateWeekday={handleSelectTemplateWeekday}
-              onApplyTemplateToToday={handleApplyTemplateToToday}
               onRestoreSystemTraining={handleRestoreSystemTraining}
               onGenerateTodayTraining={handleGenerateTodayTraining}
-              onRegenerate={handleRegenerate}
               disabled={isPending || loading}
               focusMessage={focusMessage}
               intensityLabels={intensityLabelMap}

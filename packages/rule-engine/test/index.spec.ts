@@ -21,6 +21,7 @@ const profile: RuleProfileInput = {
   dietPreferences: ['high_protein'],
   dietRestrictions: ['peanut'],
   supplementOptIn: true,
+  preferredTrainingSource: 'system',
 };
 
 describe('rule-engine', () => {

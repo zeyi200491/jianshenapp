@@ -8,6 +8,12 @@ import type {
   TrainingTemplateWeekday,
 } from '@/lib/api';
 import { DashboardCard, PanelTag } from '@/components/web/dashboard-shell';
+import {
+  DEFAULT_TRAINING_DURATION_MINUTES,
+  DEFAULT_TRAINING_INTENSITY_LEVEL,
+  DEFAULT_TRAINING_REST_SECONDS,
+  DEFAULT_TRAINING_SPLIT_TYPE,
+} from '@/lib/training-template-draft';
 
 type ExtendedTrainingTemplateItemPayload = TrainingTemplateItemPayload & {
   repText?: string;
@@ -60,7 +66,7 @@ function createDefaultItem(): ExtendedTrainingTemplateItemPayload {
     repText: '10-12',
     sourceType: 'standard',
     rawInput: null,
-    restSeconds: 90,
+    restSeconds: DEFAULT_TRAINING_REST_SECONDS,
     notes: '',
   };
 }
@@ -115,7 +121,11 @@ export function TrainingTemplateEditor({
         <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
-            onClick={onOpenImport}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onOpenImport();
+            }}
             disabled={disabled}
             className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#17324d] disabled:opacity-60"
           >
@@ -134,7 +144,7 @@ export function TrainingTemplateEditor({
 
       {!draft.id ? (
         <p className="mt-3 rounded-[18px] bg-[#eef6fb] px-4 py-3 text-sm leading-7 text-[#24516a]">
-          当前是未保存草稿，确认无误后再保存模板
+          当前是未保存草稿，确认无误后再保存模板。
         </p>
       ) : null}
 
@@ -186,9 +196,16 @@ export function TrainingTemplateEditor({
                     updateDay(draft, dayIndex, (current) => ({
                       ...current,
                       dayType: event.target.value as TrainingTemplateDayPayload['dayType'],
-                      splitType: event.target.value === 'rest' ? null : current.splitType ?? 'push_pull_legs',
-                      durationMinutes: event.target.value === 'rest' ? null : current.durationMinutes ?? 45,
-                      intensityLevel: event.target.value === 'rest' ? null : current.intensityLevel ?? 'medium',
+                      splitType:
+                        event.target.value === 'rest' ? null : current.splitType ?? DEFAULT_TRAINING_SPLIT_TYPE,
+                      durationMinutes:
+                        event.target.value === 'rest'
+                          ? null
+                          : current.durationMinutes ?? DEFAULT_TRAINING_DURATION_MINUTES,
+                      intensityLevel:
+                        event.target.value === 'rest'
+                          ? null
+                          : current.intensityLevel ?? DEFAULT_TRAINING_INTENSITY_LEVEL,
                       items:
                         event.target.value === 'rest'
                           ? []
@@ -221,7 +238,7 @@ export function TrainingTemplateEditor({
                     })),
                   )
                 }
-                placeholder="splitType"
+                placeholder="训练类型"
                 disabled={day.dayType === 'rest'}
                 className="rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none disabled:bg-[#eef3f7]"
               />

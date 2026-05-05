@@ -78,3 +78,8 @@ export function extractAccessTokenFromHeaders(headers: {
   const cookies = parseCookieHeader(headers.cookie);
   return cookies.get(ACCESS_TOKEN_COOKIE) ?? cookies.get(LEGACY_ADMIN_SESSION_COOKIE) ?? null;
 }
+
+export function extractRefreshTokenFromCookieHeader(cookieHeader: string | undefined) {
+  const cookies = parseCookieHeader(cookieHeader);
+  return cookies.get(REFRESH_TOKEN_COOKIE) ?? null;
+}

@@ -18,6 +18,7 @@ const profile: RuleProfileInput = {
   dietPreferences: [],
   dietRestrictions: [],
   supplementOptIn: true,
+  preferredTrainingSource: 'system',
 };
 
 describe('rule-engine runtime package', () => {

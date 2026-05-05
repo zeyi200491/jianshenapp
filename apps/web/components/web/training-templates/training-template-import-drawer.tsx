@@ -16,7 +16,7 @@ const matchStatusLabels = {
   matched: '已匹配标准动作',
   free_text: '按自由文本保留',
   warning: '需要人工确认',
-  invalid: '无法导入',
+  invalid: '暂时无法识别',
 } as const;
 
 type TrainingTemplateImportDrawerProps = {
@@ -25,14 +25,10 @@ type TrainingTemplateImportDrawerProps = {
   rawText: string;
   preview: TrainingTemplateImportPreview | null;
   parsing: boolean;
-  applying: boolean;
   error: string;
-  selectedWeekdays: TrainingTemplateWeekday[];
   onClose: () => void;
   onRawTextChange: (value: string) => void;
-  onPreview: () => void;
-  onToggleWeekday: (weekday: TrainingTemplateWeekday) => void;
-  onApply: () => void;
+  onGenerateDraft: () => void;
   onUseExample: () => void;
 };
 
@@ -42,19 +38,16 @@ export function TrainingTemplateImportDrawer({
   rawText,
   preview,
   parsing,
-  applying,
   error,
-  selectedWeekdays,
   onClose,
   onRawTextChange,
-  onPreview,
-  onToggleWeekday,
-  onApply,
+  onGenerateDraft,
   onUseExample,
 }: TrainingTemplateImportDrawerProps) {
   if (!open) {
     return null;
   }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-[#102235]/35">
       <button type="button" aria-label="关闭文字导入" className="flex-1 cursor-default" onClick={onClose} />
@@ -63,7 +56,7 @@ export function TrainingTemplateImportDrawer({
           <div>
             <p className="text-lg font-semibold text-[#17324d]">文字导入</p>
             <p className="mt-1 text-sm leading-6 text-[#5f768d]">
-              把训练文本贴进来，解析后生成一份新的未保存草稿，再回到编辑区继续微调。
+              把训练文字粘贴进来，系统会生成一份新的未保存草稿；生成后你还能继续微调动作和训练日内容。
             </p>
             <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#0f7ea5]">
               {templateName}
@@ -84,7 +77,7 @@ export function TrainingTemplateImportDrawer({
               <div>
                 <p className="text-base font-semibold text-[#17324d]">导入文本</p>
                 <p className="mt-1 text-sm text-[#5f768d]">
-                  支持整周或部分天。识别不了的行会单独标出来，你可以先生成草稿再逐项修正。
+                  支持整周或部分天。识别不了的行会单独标出来，你可以先生成草稿，再回到编辑器逐条修正。
                 </p>
               </div>
               <button
@@ -95,23 +88,25 @@ export function TrainingTemplateImportDrawer({
                 示例格式
               </button>
             </div>
+
             <textarea
               value={rawText}
               onChange={(event) => onRawTextChange(event.target.value)}
               placeholder="例如：周二 胸肩三头"
               className="mt-4 min-h-[220px] w-full rounded-[20px] border border-[#d7e3ec] bg-[#f8fbfe] px-4 py-4 text-sm leading-7 text-[#17324d] outline-none"
             />
+
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={onPreview}
-                disabled={parsing || applying || !rawText.trim()}
+                onClick={onGenerateDraft}
+                disabled={parsing || !rawText.trim()}
                 className="rounded-full bg-[#0f7ea5] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {parsing ? '生成中...' : '生成草稿模板'}
               </button>
               <span className="text-xs leading-6 text-[#5f768d]">
-                这一步只会生成一份未保存草稿，不会直接改动已保存模板。
+                这一步只会生成一份未保存草稿，不会直接改动已经保存的模板。
               </span>
             </div>
           </div>
@@ -166,8 +161,8 @@ export function TrainingTemplateImportDrawer({
                       ? '休息日'
                       : day.selectable
                         ? day.warnings.length > 0
-                          ? '可导入，含警告'
-                          : '可导入'
+                          ? '可生成，含提醒'
+                          : '可生成'
                         : '部分异常';
 
                   return (

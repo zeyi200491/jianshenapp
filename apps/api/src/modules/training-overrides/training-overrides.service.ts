@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppException } from '../../common/utils/app.exception';
 import { serializeValue } from '../../common/utils/serialize.util';
+import { ProfilesService } from '../profiles/profiles.service';
 import type { ApplyTrainingOverrideDto } from './dto/apply-training-override.dto';
 import { TrainingOverridesRepository } from './training-overrides.repository';
 
@@ -33,7 +34,10 @@ function mapTrainingLike(plan: any) {
 
 @Injectable()
 export class TrainingOverridesService {
-  constructor(private readonly repository: TrainingOverridesRepository) {}
+  constructor(
+    private readonly repository: TrainingOverridesRepository,
+    private readonly profilesService: ProfilesService,
+  ) {}
 
   async apply(userId: string, dailyPlanId: string, dto: ApplyTrainingOverrideDto) {
     const dailyPlan = await this.repository.findDailyPlanByIdAndUser(dailyPlanId, userId);
@@ -91,6 +95,7 @@ export class TrainingOverridesService {
     }
 
     await this.repository.removeActiveOverride(dailyPlanId, userId);
+    await this.profilesService.setPreferredTrainingSource(userId, 'system');
 
     return serializeValue({
       dailyPlanId,

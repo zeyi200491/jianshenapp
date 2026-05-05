@@ -4,6 +4,7 @@ import {
   buildSessionCookieHeaders,
   clearSessionCookieHeaders,
   extractAccessTokenFromHeaders,
+  extractRefreshTokenFromCookieHeader,
 } from './session-cookie.util';
 
 describe('session cookie utilities', () => {
@@ -52,5 +53,12 @@ describe('session cookie utilities', () => {
         cookie: `theme=dark; ${ACCESS_TOKEN_COOKIE}=cookie-token; other=value`,
       }),
     ).toBe('cookie-token');
+  });
+
+  it('extracts the refresh token from the HttpOnly session cookie header', () => {
+    expect(extractRefreshTokenFromCookieHeader(`theme=dark; ${REFRESH_TOKEN_COOKIE}=refresh-token; other=value`)).toBe(
+      'refresh-token',
+    );
+    expect(extractRefreshTokenFromCookieHeader(undefined)).toBeNull();
   });
 });

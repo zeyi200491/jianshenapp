@@ -46,6 +46,7 @@ $apiHealthUrl = "http://${apiHost}:${apiPort}/api/v1/health"
 $webUrl = "http://127.0.0.1:${webPort}"
 $docsUrl = "http://${apiHost}:${apiPort}/docs"
 $aiHealthUrl = "http://${aiHost}:${aiPort}/health"
+$webApiBaseUrl = "http://${apiHost}:${apiPort}/api/v1"
 $edgeProfileDir = Join-Path $root '.tmp/edge-local-profile'
 $rebuiltServices = [System.Collections.Generic.HashSet[string]]::new()
 
@@ -86,6 +87,26 @@ function Get-EdgeExecutable {
   }
 
   return $null
+}
+
+function ConvertTo-CmdEnvPrefix {
+  param([hashtable]$EnvironmentOverrides)
+
+  if (-not $EnvironmentOverrides -or $EnvironmentOverrides.Count -eq 0) {
+    return ''
+  }
+
+  $segments = foreach ($entry in $EnvironmentOverrides.GetEnumerator()) {
+    $rawValue = $entry.Value
+    if ($null -eq $rawValue) {
+      $rawValue = ''
+    }
+
+    $escapedValue = $rawValue.ToString().Replace('"', '\"')
+    "set `"$($entry.Key)=$escapedValue`""
+  }
+
+  return ($segments -join ' && ')
 }
 
 function Get-ListeningProcessId {
@@ -150,11 +171,24 @@ function Wait-HttpReady {
 function Test-RebuildRequired {
   param(
     [string]$Workdir,
-    [string]$ArtifactPath
+    [string]$ArtifactPath,
+    [string]$FingerprintPath,
+    [string]$Fingerprint
   )
 
   if (-not (Test-Path -LiteralPath $ArtifactPath)) {
     return $true
+  }
+
+  if ($FingerprintPath -and $Fingerprint) {
+    if (-not (Test-Path -LiteralPath $FingerprintPath)) {
+      return $true
+    }
+
+    $storedFingerprint = (Get-Content -LiteralPath $FingerprintPath -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($storedFingerprint -ne $Fingerprint) {
+      return $true
+    }
   }
 
   $artifactTime = (Get-Item -LiteralPath $ArtifactPath).LastWriteTimeUtc
@@ -174,20 +208,40 @@ function Ensure-BuildArtifacts {
   param(
     [string]$ServiceName,
     [string]$Workdir,
-    [string]$ArtifactPath
+    [string]$ArtifactPath,
+    [string]$FingerprintPath,
+    [string]$Fingerprint,
+    [hashtable]$EnvironmentOverrides
   )
 
-  if ((-not $Rebuild) -and (-not (Test-RebuildRequired -Workdir $Workdir -ArtifactPath $ArtifactPath))) {
+  if ((-not $Rebuild) -and (-not (Test-RebuildRequired -Workdir $Workdir -ArtifactPath $ArtifactPath -FingerprintPath $FingerprintPath -Fingerprint $Fingerprint))) {
     return
   }
 
   Write-Host "[$ServiceName] Preparing build artifacts..." -ForegroundColor Cyan
+  $environmentPrefix = ConvertTo-CmdEnvPrefix -EnvironmentOverrides $EnvironmentOverrides
+  $buildCommand = if ([string]::IsNullOrWhiteSpace($environmentPrefix)) {
+    'npm.cmd run build'
+  } else {
+    "$environmentPrefix && npm.cmd run build"
+  }
+
   Push-Location $Workdir
   try {
-    & npm.cmd run build
+    & cmd.exe /d /s /c $buildCommand
     if ($LASTEXITCODE -ne 0) {
       throw "$ServiceName build failed."
     }
+
+    if ($FingerprintPath -and $Fingerprint) {
+      $fingerprintDirectory = Split-Path -Parent $FingerprintPath
+      if (-not (Test-Path -LiteralPath $fingerprintDirectory)) {
+        New-Item -ItemType Directory -Path $fingerprintDirectory -Force | Out-Null
+      }
+
+      Set-Content -LiteralPath $FingerprintPath -Value $Fingerprint -NoNewline
+    }
+
     [void]$rebuiltServices.Add($ServiceName)
   }
   finally {
@@ -216,7 +270,8 @@ function Start-ManagedService {
     [string]$StartupCommand,
     [int]$Port,
     [string]$HealthUrl,
-    [string]$DesiredDataMode
+    [string]$DesiredDataMode,
+    [hashtable]$EnvironmentOverrides
   )
 
   if (Test-HttpOk -Url $HealthUrl) {
@@ -244,7 +299,13 @@ function Start-ManagedService {
   }
 
   Write-Host "[$ServiceName] Starting..." -ForegroundColor Cyan
-  Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', "cd /d `"$Workdir`" && $StartupCommand" -WindowStyle Minimized | Out-Null
+  $environmentPrefix = ConvertTo-CmdEnvPrefix -EnvironmentOverrides $EnvironmentOverrides
+  $startupSegments = @("cd /d `"$Workdir`"")
+  if (-not [string]::IsNullOrWhiteSpace($environmentPrefix)) {
+    $startupSegments += $environmentPrefix
+  }
+  $startupSegments += $StartupCommand
+  Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', ($startupSegments -join ' && ') -WindowStyle Minimized | Out-Null
   Wait-HttpReady -ServiceName $ServiceName -Url $HealthUrl
 }
 
@@ -258,11 +319,23 @@ if (Get-ListeningProcessId -Port $apiPort) {
 
 Ensure-LocalDatabase
 Ensure-BuildArtifacts -ServiceName 'API' -Workdir $apiWorkdir -ArtifactPath (Join-Path $apiWorkdir 'dist/apps/api/src/main.js')
-Ensure-BuildArtifacts -ServiceName 'Web' -Workdir $webWorkdir -ArtifactPath (Join-Path $webWorkdir '.next/BUILD_ID')
+Ensure-BuildArtifacts `
+  -ServiceName 'Web' `
+  -Workdir $webWorkdir `
+  -ArtifactPath (Join-Path $webWorkdir '.next/BUILD_ID') `
+  -FingerprintPath (Join-Path $webWorkdir '.next/local-api-base.txt') `
+  -Fingerprint $webApiBaseUrl `
+  -EnvironmentOverrides @{ NEXT_PUBLIC_API_BASE_URL = $webApiBaseUrl }
 
 Start-ManagedService -ServiceName 'AI' -Workdir $aiWorkdir -StartupCommand "python -m uvicorn app.main:app --host $aiHost --port $aiPort" -Port $aiPort -HealthUrl $aiHealthUrl
 Start-ManagedService -ServiceName 'API' -Workdir $apiWorkdir -StartupCommand 'set API_DATA_MODE=database && npm.cmd run start' -Port $apiPort -HealthUrl $apiHealthUrl -DesiredDataMode 'database'
-Start-ManagedService -ServiceName 'Web' -Workdir $webWorkdir -StartupCommand 'npm.cmd run start' -Port $webPort -HealthUrl $webUrl
+Start-ManagedService `
+  -ServiceName 'Web' `
+  -Workdir $webWorkdir `
+  -StartupCommand 'npm.cmd run start' `
+  -Port $webPort `
+  -HealthUrl $webUrl `
+  -EnvironmentOverrides @{ NEXT_PUBLIC_API_BASE_URL = $webApiBaseUrl }
 
 function Open-LocalUrl {
   param([string]$Url)

@@ -29,6 +29,7 @@ test('一键启动脚本覆盖 web、api 与 ai-service 的启动和健康检查
   assert.match(script, /API_PORT' -Fallback '3050'/);
   assert.match(script, /WEB_PORT' -Fallback '3200'/);
   assert.match(script, /AI_SERVICE_PORT' -Fallback '8001'/);
+  assert.match(script, /\$webApiBaseUrl = "http:\/\/\$\{apiHost\}:\$\{apiPort\}\/api\/v1"/);
   assert.match(script, /api\/v1\/health/);
   assert.match(script, /\$aiHealthUrl = "http:\/\/\$\{aiHost\}:\$\{aiPort\}\/health"/);
   assert.match(script, /Start-ManagedService -ServiceName 'AI'/);
@@ -37,13 +38,18 @@ test('一键启动脚本覆盖 web、api 与 ai-service 的启动和健康检查
   assert.match(script, /\.tmp[\\/]+edge-local-profile/);
   assert.match(script, /Open-LocalUrl -Url \$webUrl/);
   assert.match(script, /Open-LocalUrl -Url \$docsUrl/);
+  const releaseApiIndex = script.indexOf("Stop-ListeningProcess -Port $apiPort -ServiceName 'API'");
+  const ensureDbIndex = script.lastIndexOf('Ensure-LocalDatabase');
   assert.ok(
-    script.indexOf("Stop-ListeningProcess -Port $apiPort -ServiceName 'API'") < script.indexOf('Ensure-LocalDatabase'),
+    releaseApiIndex !== -1 && ensureDbIndex !== -1 && releaseApiIndex < ensureDbIndex,
     '一键启动脚本必须在执行 db:init 前先释放旧的 API 进程，避免 Prisma Client 在 Windows 下被 DLL 占用'
   );
   assert.match(script, /\$rebuiltServices = \[System\.Collections\.Generic\.HashSet\[string\]\]::new\(\)/);
   assert.match(script, /\$rebuiltServices\.Contains\(\$ServiceName\)/);
   assert.match(script, /Rebuilt in current run, restarting to load latest artifacts\./);
+  assert.match(script, /NEXT_PUBLIC_API_BASE_URL/);
+  assert.match(script, /ConvertTo-CmdEnvPrefix/);
+  assert.match(script, /local-api-base\.txt/);
 });
 
 test('Edge 独立 profile 路径带引号，避免项目路径含空格时被拆成错误标签页', () => {

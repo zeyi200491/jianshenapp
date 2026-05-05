@@ -75,6 +75,7 @@ model UserProfile {
   dietPreferences       Json      @map("diet_preferences")
   dietRestrictions      Json      @map("diet_restrictions")
   supplementOptIn       Boolean   @default(false) @map("supplement_opt_in")
+  preferredTrainingSource String  @default("system") @map("preferred_training_source") @db.VarChar(16)
   trainingCycleStartFocus String?   @map("training_cycle_start_focus") @db.VarChar(16)
   trainingCycleResetAt   DateTime? @map("training_cycle_reset_at")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")

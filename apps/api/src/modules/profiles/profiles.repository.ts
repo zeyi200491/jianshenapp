@@ -3,6 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { OnboardingDto } from './dto/onboarding.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 
+type PreferredTrainingSource = 'system' | 'template';
+
 @Injectable()
 export class ProfilesRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -48,6 +50,7 @@ export class ProfilesRepository {
         dietPreferences: (dto as OnboardingDto).dietPreferences ?? [],
         dietRestrictions: (dto as OnboardingDto).dietRestrictions ?? [],
         supplementOptIn: (dto as OnboardingDto).supplementOptIn,
+        preferredTrainingSource: 'system',
         onboardingCompletedAt: completeOnboarding ? new Date() : null,
         trainingCycleStartFocus: null,
         trainingCycleResetAt: null,
@@ -60,6 +63,13 @@ export class ProfilesRepository {
     return this.prisma.userProfile.update({
       where: { userId },
       data: this.buildProfileData(dto, false),
+    });
+  }
+
+  setPreferredTrainingSource(userId: string, preferredTrainingSource: PreferredTrainingSource) {
+    return this.prisma.userProfile.update({
+      where: { userId },
+      data: { preferredTrainingSource },
     });
   }
 

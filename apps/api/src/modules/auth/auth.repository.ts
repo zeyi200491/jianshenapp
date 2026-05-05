@@ -5,6 +5,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  findUserById(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+      },
+    });
+  }
+
   findAccountByOpenId(provider: string, openId: string) {
     return this.prisma.authAccount.findUnique({
       where: {

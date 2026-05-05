@@ -33,6 +33,11 @@ output/
 .codex-output/
 .worktrees/
 ai-login-snapshot.md
+playwright-report/
+test-results/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/ai-service/logs/
 
 .rtk/
 third_party/rtk/rtk.exe

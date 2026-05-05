@@ -24,6 +24,9 @@
     "dev:db": "node scripts/local-postgres.mjs start",
     "db:status": "node scripts/local-postgres.mjs status",
     "db:stop": "node scripts/local-postgres.mjs stop",
+    "guard:install": "node scripts/repo-guard.mjs install-hooks",
+    "guard:check": "node scripts/repo-guard.mjs check",
+    "guard:clean": "node scripts/repo-guard.mjs clean",
     "smoke:local": "powershell -ExecutionPolicy Bypass -File scripts/smoke-local.ps1",
     "smoke:web": "powershell -ExecutionPolicy Bypass -File scripts/web-http-smoke.ps1",
     "start:local": "powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1"

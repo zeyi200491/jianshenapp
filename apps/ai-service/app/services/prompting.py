@@ -14,6 +14,8 @@ TASK_FILE_MAP = {
     "plan_adjustment": "plan_adjustment_task.txt",
     "rag_answer": "rag_answer_task.txt",
     "rag_answer_stream": "rag_answer_stream_task.txt",
+    "scope_classification": "scope_classification_task.txt",
+    "out_of_scope_reply": "out_of_scope_reply_task.txt",
 }
 
 

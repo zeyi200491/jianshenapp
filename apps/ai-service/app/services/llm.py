@@ -13,7 +13,14 @@ from app.core.errors import AppError
 
 class BaseLLMClient(abc.ABC):
     @abc.abstractmethod
-    async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete(
+        self,
+        *,
+        task_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+    ) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -22,8 +29,28 @@ class BaseLLMClient(abc.ABC):
 
 
 class MockLLMClient(BaseLLMClient):
-    async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete(
+        self,
+        *,
+        task_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+    ) -> str:
         context = _extract_context(user_prompt)
+
+        if task_name == "scope_classification":
+            question = str(context.get("question", ""))
+            result = _classify_scope(question)
+            return json.dumps(result, ensure_ascii=False)
+
+        if task_name == "out_of_scope_reply":
+            question = str(context.get("question", ""))
+            scope_reason = str(context.get("scope_reason", "")).strip()
+            return json.dumps(
+                _build_out_of_scope_reply(question=question, scope_reason=scope_reason),
+                ensure_ascii=False,
+            )
 
         if task_name == "diet_explanation":
             diet_plan = context["diet_plan"]
@@ -86,14 +113,7 @@ class MockLLMClient(BaseLLMClient):
         if task_name == "rag_answer":
             return json.dumps(_build_mock_rag_answer(context), ensure_ascii=False)
 
-        return json.dumps(
-            {
-                "answer": "当前场景已收到，但没有匹配到对应模板，建议走静态兜底。",
-                "tips": ["保持结构化上下文输入。"],
-                "riskNote": "",
-            },
-            ensure_ascii=False,
-        )
+        raise ValueError(f"Unsupported mock task: {task_name}")
 
     async def stream_complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
         context = _extract_context(user_prompt)
@@ -112,9 +132,16 @@ class OpenAICompatibleLLMClient(BaseLLMClient):
             raise ValueError("openai_compatible 提供方缺少必要配置")
         self._settings = settings
 
-    async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete(
+        self,
+        *,
+        task_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None = None,
+    ) -> str:
         payload = {
-            "model": self._settings.ai_model,
+            "model": model or self._settings.ai_model,
             "temperature": 0.2,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -225,6 +252,153 @@ def _extract_context(user_prompt: str) -> dict[str, Any]:
     start = user_prompt.index(marker) + len(marker)
     end = user_prompt.rindex("```")
     return json.loads(user_prompt[start:end].strip())
+
+
+def _classify_scope(question: str) -> dict[str, str]:
+    normalized_question = question.lower()
+
+    high_risk_markers = (
+        "急救",
+        "急诊",
+        "胸痛",
+        "呼吸困难",
+        "昏迷",
+        "骨折",
+        "脱臼",
+        "大出血",
+        "处方药",
+        "抗生素",
+        "激素药",
+        "心梗",
+        "中风",
+        "诊断",
+        "确诊",
+        "自杀",
+        "自残",
+    )
+    severe_pain_markers = (
+        "剧痛",
+        "严重",
+        "无法站立",
+        "站不起来",
+        "突出",
+        "撕裂",
+        "断裂",
+    )
+    mild_pain_markers = (
+        "轻微",
+        "轻度",
+        "低风险调整",
+        "训练怎么调整",
+        "今天训练怎么调整",
+        "怎么低风险调整",
+    )
+    unrelated_markers = (
+        "python",
+        "java",
+        "代码",
+        "编程",
+        "法律",
+        "律师",
+        "起诉",
+        "合同",
+        "离婚",
+        "理财",
+        "股票",
+        "基金",
+        "投资",
+        "八卦",
+        "明星",
+        "旅游",
+        "机票",
+        "酒店",
+        "作业",
+        "论文",
+        "代写",
+    )
+    boundary_markers = (
+        "疼",
+        "痛",
+        "酸痛",
+        "拉伤",
+        "扭伤",
+        "受伤",
+        "不适",
+        "康复",
+        "恢复训练",
+        "能不能练",
+        "还能练",
+        "训练调整",
+        "膝盖",
+        "腰",
+        "肩",
+        "手腕",
+        "脚踝",
+    )
+    fitness_markers = (
+        "训练",
+        "动作",
+        "深蹲",
+        "硬拉",
+        "卧推",
+        "跑步",
+        "有氧",
+        "力量",
+        "增肌",
+        "减脂",
+        "体重",
+        "体脂",
+        "热量",
+        "蛋白",
+        "碳水",
+        "脂肪",
+        "饮食",
+        "晚餐",
+        "食材",
+        "外卖",
+        "补剂",
+        "蛋白粉",
+        "肌酸",
+        "睡眠",
+        "恢复",
+        "拉伸",
+    )
+
+    if any(marker in normalized_question for marker in high_risk_markers):
+        return {"label": "out_of_scope", "reason": "问题涉及医疗高风险、严重伤病或诊断用药，不属于当前支持范围。"}
+
+    if any(marker in normalized_question for marker in severe_pain_markers):
+        return {"label": "out_of_scope", "reason": "问题指向严重疼痛、重伤或诊断判断，已经超出轻度训练调整范围。"}
+
+    if any(marker in normalized_question for marker in unrelated_markers):
+        return {"label": "out_of_scope", "reason": "问题主题明显不属于训练、饮食、恢复或体重管理场景。"}
+
+    if any(marker in normalized_question for marker in mild_pain_markers) and any(marker in normalized_question for marker in fitness_markers):
+        return {"label": "in_scope", "reason": "问题属于轻度不适下的训练调整，仍在可讨论的健身支持范围内。"}
+
+    if any(marker in normalized_question for marker in boundary_markers):
+        return {"label": "uncertain", "reason": "问题涉及疼痛、康复或是否继续训练的边界情况，需要谨慎分类。"}
+
+    if any(marker in normalized_question for marker in fitness_markers):
+        return {"label": "in_scope", "reason": "问题聚焦训练、饮食、恢复、补剂或体重管理等支持范围。"}
+
+    return {"label": "out_of_scope", "reason": "问题与当前支持的健身饮食方向关联不足。"}
+
+
+def _build_out_of_scope_reply(*, question: str, scope_reason: str) -> dict[str, Any]:
+    reason_prefix = f"这次问题“{question}”暂时不在我能直接处理的范围内。" if question else "这个问题暂时不在我能直接处理的范围内。"
+    reason_suffix = f"原因是：{scope_reason}" if scope_reason else "原因是：它超出了当前健身助手的职责边界。"
+    answer = (
+        f"{reason_prefix}{reason_suffix}"
+        "我当前只支持训练、饮食、恢复、补剂、体重管理和轻度运动康复相关问题。"
+        "如果你愿意，我可以帮你把问题改写到这些范围内继续聊。"
+    )
+    tips = [
+        "比如你可以问：今天力量训练后怎么安排晚餐更稳妥？",
+        "比如你可以问：减脂期外卖怎么替换更容易控制热量？",
+        "比如你可以问：下背轻微不适时，今天训练该怎么做低风险调整？",
+    ]
+    return {"answer": answer, "tips": tips, "riskNote": ""}
 
 
 def _build_mock_rag_answer(context: dict[str, Any]) -> dict[str, Any]:
@@ -360,7 +534,7 @@ def _build_plan_relation(
 
     if intent == "diet_substitution" and diet_plan:
         protein_target = ((diet_plan.get("targets") or {}).get("protein_g")) or "当天"
-        return f"你现在是“{goal}”目标、且处在“{scene}”场景，今天更重要的是把蛋白和总热量大方向执行住，而不是纠结食材是否完美；蛋白目标可以先盯住约 {protein_target}g。"
+        return f"你当前的目标是“{goal}”、且处在“{scene}”场景，今天更重要的是把蛋白和总热量大方向执行住，而不是纠结食材是否完美；蛋白目标可以先盯住约 {protein_target}g。"
 
     if intent == "training_execution" and training_plan:
         return f"你今天这次训练是“{training_plan.get('title', '当前训练')}”，重点是保住主动作顺序和完成度，辅助动作可以后移或缩减。"

@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from app.core.config import get_settings
 from app.services.boundary import BoundaryPolicy
+from app.services.domain_scope import DomainScopeService
 from app.services.llm import BaseLLMClient, MockLLMClient, OpenAICompatibleLLMClient
 from app.services.orchestrator import AIOrchestrator
 from app.services.prompting import PromptManager
@@ -26,6 +27,16 @@ def get_boundary_policy() -> BoundaryPolicy:
 
 
 @lru_cache(maxsize=1)
+def get_domain_scope_service() -> DomainScopeService:
+    settings = get_settings()
+    return DomainScopeService(
+        llm_client=get_llm_client(),
+        prompt_manager=PromptManager(settings.prompt_dir),
+        scope_model=settings.resolved_ai_scope_model,
+    )
+
+
+@lru_cache(maxsize=1)
 def get_ai_orchestrator() -> AIOrchestrator:
     settings = get_settings()
     return AIOrchestrator(
@@ -35,4 +46,5 @@ def get_ai_orchestrator() -> AIOrchestrator:
         safety_service=SafetyService(),
         rule_engine=RuleEngineService(),
         boundary_policy=get_boundary_policy(),
+        domain_scope_service=get_domain_scope_service(),
     )

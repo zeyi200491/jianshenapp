@@ -3,10 +3,15 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 
-from app.models.schemas import RagAskRequest
 from app.core.config import get_settings
+from app.models.schemas import RagAskRequest
 import app.main as app_main_module
-from app.services.container import get_ai_orchestrator, get_boundary_policy, get_llm_client
+from app.services.container import (
+    get_ai_orchestrator,
+    get_boundary_policy,
+    get_domain_scope_service,
+    get_llm_client,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -17,19 +22,23 @@ def reset_service_caches(monkeypatch: pytest.MonkeyPatch) -> None:
     get_settings.cache_clear()
     get_llm_client.cache_clear()
     get_boundary_policy.cache_clear()
+    get_domain_scope_service.cache_clear()
     get_ai_orchestrator.cache_clear()
     yield
     get_settings.cache_clear()
     get_llm_client.cache_clear()
     get_boundary_policy.cache_clear()
+    get_domain_scope_service.cache_clear()
     get_ai_orchestrator.cache_clear()
 
 
 @pytest.fixture
 def client() -> TestClient:
     app_module = importlib.reload(app_main_module)
+    app_module.app.state.limiter._storage.reset()
     with TestClient(app_module.app) as test_client:
         yield test_client
+    app_module.app.state.limiter._storage.reset()
 
 
 def _diet_payload() -> dict:
@@ -360,3 +369,57 @@ def test_rag_answer_covers_hotel_training_scene(client: TestClient) -> None:
     assert "哑铃" in answer
     assert "跑步机" in answer or "热身" in answer
     assert "训练" in answer
+
+
+def test_rag_ask_soft_refuses_clear_out_of_scope_question(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/rag/ask",
+        json={"question": "帮我写一段 Python 排序代码。", "top_k": 2},
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["code"] == "OK"
+    assert "只支持训练、饮食、恢复、补剂、体重管理和轻度运动康复" in body["data"]["answer"]
+    assert len(body["data"]["tips"]) == 3
+    assert body["data"]["citations"] == []
+    trace_steps = [step["step"] for step in body["data"]["trace"]]
+    assert trace_steps == ["input_safety", "domain_scope_gate", "llm_generation", "output_safety"]
+    assert "out_of_scope" in body["data"]["trace"][1]["summary"]
+
+
+def test_rag_ask_boundary_question_records_domain_scope_gate(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/rag/ask",
+        json={
+            "question": "膝盖有点疼还能不能练深蹲？",
+            "top_k": 2,
+            "user_profile": {
+                "goal": "减脂",
+                "diet_scene": "canteen",
+                "training_level": "beginner",
+                "supplement_opt_in": False,
+            },
+        },
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["code"] == "OK"
+    trace_steps = [step["step"] for step in body["data"]["trace"]]
+    assert "domain_scope_gate" in trace_steps
+    domain_scope_trace = next(step for step in body["data"]["trace"] if step["step"] == "domain_scope_gate")
+    assert "来源：model" in domain_scope_trace["summary"]
+
+
+def test_rag_ask_in_scope_question_includes_domain_scope_gate(client: TestClient) -> None:
+    payload = _diet_payload()
+    payload["question"] = "今天食堂没有鸡胸肉怎么办？"
+    response = client.post("/api/v1/rag/ask", json=payload)
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["code"] == "OK"
+    trace_steps = [step["step"] for step in body["data"]["trace"]]
+    assert trace_steps[1] == "domain_scope_gate"
+    assert "in_scope" in body["data"]["trace"][1]["summary"]

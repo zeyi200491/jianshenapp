@@ -12,6 +12,7 @@ class Settings(BaseModel):
     ai_env: str = Field(default="local")
     ai_provider: str = Field(default="mock")
     ai_model: str = Field(default="campusfit-mock")
+    ai_scope_model: str | None = Field(default=None)
     ai_timeout_seconds: int = Field(default=12)
     ai_openai_base_url: str | None = Field(default=None)
     ai_openai_api_key: str | None = Field(default=None)
@@ -36,6 +37,10 @@ class Settings(BaseModel):
         return self.base_dir / self.log_dir / "requests.log"
 
     @property
+    def resolved_ai_scope_model(self) -> str:
+        return self.ai_scope_model or self.ai_model
+
+    @property
     def provider_ready(self) -> bool:
         return self.provider_issue is None
 
@@ -44,15 +49,21 @@ class Settings(BaseModel):
         if self.ai_provider == "mock":
             return None
         if self.ai_provider == "openai_compatible":
-            missing: list[str] = []
+            missing_alias_names: list[str] = []
+            missing_internal_names: list[str] = []
             if not self.ai_openai_base_url:
-                missing.append("AI_OPENAI_BASE_URL")
+                missing_alias_names.append("OPENAI_BASE_URL")
+                missing_internal_names.append("AI_OPENAI_BASE_URL")
             if not self.ai_openai_api_key:
-                missing.append("AI_OPENAI_API_KEY")
-            if missing:
-                return f"缺少配置：{', '.join(missing)}"
+                missing_alias_names.append("OPENAI_API_KEY")
+                missing_internal_names.append("AI_OPENAI_API_KEY")
+            if missing_alias_names:
+                return (
+                    f"缺少兼容接口配置：{'、'.join(missing_alias_names)}"
+                    f"（或 {'、'.join(missing_internal_names)}）"
+                )
             return None
-        return f"未支持的 provider：{self.ai_provider}"
+        return f"不支持的 provider：{self.ai_provider}"
 
 
 def _normalize_env_value(value: str | None) -> str | None:
@@ -155,6 +166,7 @@ def build_settings(
         resolved_file_env,
         aliases=("OPENAI_MODEL",),
     )
+    ai_scope_model = _pick_env("AI_SCOPE_MODEL", resolved_env, resolved_file_env)
 
     configured_provider = _pick_env("AI_PROVIDER", resolved_env, resolved_file_env)
     if configured_provider in (None, "mock"):
@@ -175,6 +187,7 @@ def build_settings(
         ai_env=_pick_env("AI_ENV", resolved_env, resolved_file_env) or "local",
         ai_provider=ai_provider,
         ai_model=ai_model,
+        ai_scope_model=ai_scope_model,
         ai_timeout_seconds=int(ai_timeout_raw),
         ai_openai_base_url=ai_openai_base_url,
         ai_openai_api_key=ai_openai_api_key,

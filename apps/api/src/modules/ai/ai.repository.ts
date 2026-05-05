@@ -1,4 +1,5 @@
-﻿import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AiConversationContext } from './dto/ai-context.dto';
 
@@ -87,10 +88,11 @@ export class AiRepository {
 
     const rows = await this.raw.$queryRawUnsafe<ConversationRow[]>(
       `
-        INSERT INTO ai_conversations (user_id, title, context)
-        VALUES ($1::uuid, $2, $3::jsonb)
+        INSERT INTO ai_conversations (id, user_id, title, context)
+        VALUES ($1::uuid, $2::uuid, $3, $4::jsonb)
         RETURNING id, user_id, title, context, created_at, updated_at
       `,
+      randomUUID(),
       userId,
       title,
       JSON.stringify(context ?? {}),
@@ -142,15 +144,17 @@ export class AiRepository {
     content: string,
     citations: unknown[] = [],
     trace: unknown[] = [],
+    messageId?: string,
   ) {
     await this.ensureTables();
 
     const rows = await this.raw.$queryRawUnsafe<MessageRow[]>(
       `
-        INSERT INTO ai_messages (conversation_id, role, content, citations, trace)
-        VALUES ($1::uuid, $2, $3, $4::jsonb, $5::jsonb)
+        INSERT INTO ai_messages (id, conversation_id, role, content, citations, trace)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb, $6::jsonb)
         RETURNING id, conversation_id, role, content, citations, trace, created_at
       `,
+      messageId ?? randomUUID(),
       conversationId,
       role,
       content,
@@ -175,4 +179,3 @@ export class AiRepository {
     );
   }
 }
-

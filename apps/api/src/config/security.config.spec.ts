@@ -24,13 +24,16 @@ describe('API security config', () => {
     ).toThrow(/ADMIN_EMAIL/);
   });
 
-  it('keeps swagger disabled by default in production', () => {
+  it('keeps swagger disabled by default unless explicitly enabled', () => {
     expect(shouldEnableSwagger({ NODE_ENV: 'production' })).toBe(false);
     expect(shouldEnableSwagger({ NODE_ENV: 'production', SWAGGER_ENABLED: 'true' })).toBe(true);
-    expect(shouldEnableSwagger({ NODE_ENV: 'development' })).toBe(true);
+    expect(shouldEnableSwagger({ NODE_ENV: 'development' })).toBe(false);
   });
 
-  it('allows a development fallback secret outside production', () => {
-    expect(getJwtSecret({ NODE_ENV: 'development' })).toBe('campusfit-dev-secret');
+  it('requires JWT secrets in development too', () => {
+    expect(() => getJwtSecret({ NODE_ENV: 'development' })).toThrow(/JWT_SECRET/);
+    expect(getJwtSecret({ NODE_ENV: 'development', JWT_SECRET: 'dev-secret-value' })).toBe(
+      'dev-secret-value',
+    );
   });
 });

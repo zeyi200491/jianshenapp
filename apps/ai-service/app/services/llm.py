@@ -2,16 +2,22 @@
 
 import abc
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 
 from app.core.config import Settings
+from app.core.errors import AppError
 
 
 class BaseLLMClient(abc.ABC):
     @abc.abstractmethod
     async def complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def stream_complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
         raise NotImplementedError
 
 
@@ -89,6 +95,16 @@ class MockLLMClient(BaseLLMClient):
             ensure_ascii=False,
         )
 
+    async def stream_complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
+        context = _extract_context(user_prompt)
+        if task_name == "rag_answer_stream":
+            answer = _build_mock_rag_answer(context)["answer"]
+        else:
+            answer = await self.complete(task_name=task_name, system_prompt=system_prompt, user_prompt=user_prompt)
+
+        for chunk in _chunk_text(answer):
+            yield chunk
+
 
 class OpenAICompatibleLLMClient(BaseLLMClient):
     def __init__(self, settings: Settings) -> None:
@@ -109,15 +125,97 @@ class OpenAICompatibleLLMClient(BaseLLMClient):
             "Authorization": f"Bearer {self._settings.ai_openai_api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=self._settings.ai_timeout_seconds) as client:
-            response = await client.post(
-                f"{self._settings.ai_openai_base_url.rstrip('/')}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(timeout=self._settings.ai_timeout_seconds) as client:
+                response = await client.post(
+                    f"{self._settings.ai_openai_base_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise AppError(
+                code="AI_TIMEOUT",
+                message="模型响应超时，请稍后重试",
+                status_code=504,
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            raise AppError(
+                code="AI_TIMEOUT",
+                message=f"模型服务返回异常状态：{exc.response.status_code}",
+                status_code=502,
+                data={"statusCode": exc.response.status_code},
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise AppError(
+                code="AI_TIMEOUT",
+                message="模型服务暂时不可用，请稍后重试",
+                status_code=502,
+            ) from exc
         data = response.json()
         return data["choices"][0]["message"]["content"]
+
+    async def stream_complete(self, *, task_name: str, system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
+        payload = {
+            "model": self._settings.ai_model,
+            "temperature": 0.2,
+            "stream": True,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        headers = {
+            "Authorization": f"Bearer {self._settings.ai_openai_api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self._settings.ai_timeout_seconds) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self._settings.ai_openai_base_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            parsed = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        delta = ((parsed.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                        if delta:
+                            yield delta
+        except httpx.TimeoutException as exc:
+            raise AppError(
+                code="AI_TIMEOUT",
+                message="模型响应超时，请稍后重试",
+                status_code=504,
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            raise AppError(
+                code="AI_TIMEOUT",
+                message=f"模型服务返回异常状态：{exc.response.status_code}",
+                status_code=502,
+                data={"statusCode": exc.response.status_code},
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise AppError(
+                code="AI_TIMEOUT",
+                message="模型服务暂时不可用，请稍后重试",
+                status_code=502,
+            ) from exc
+
+
+def _chunk_text(text: str, size: int = 24) -> list[str]:
+    if not text:
+        return [""]
+    return [text[index : index + size] for index in range(0, len(text), size)]
 
 
 def _extract_context(user_prompt: str) -> dict[str, Any]:

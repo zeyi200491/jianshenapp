@@ -8,6 +8,7 @@ import type {
   TrainingTemplateWeekday,
 } from '@/lib/api';
 import { DashboardCard, PanelTag } from '@/components/web/dashboard-shell';
+import { buildExerciseCodeFromName } from '@/lib/training-template-draft';
 
 type ExtendedTrainingTemplateItemPayload = TrainingTemplateItemPayload & {
   repText?: string;
@@ -30,7 +31,6 @@ type TrainingTemplateEditorProps = {
   onSave: () => void;
   onOpenImport: () => void;
   disabled?: boolean;
-  importDisabled?: boolean;
   importHint?: string;
 };
 
@@ -93,7 +93,6 @@ export function TrainingTemplateEditor({
   onSave,
   onOpenImport,
   disabled = false,
-  importDisabled = false,
   importHint = '',
 }: TrainingTemplateEditorProps) {
   if (!draft) {
@@ -118,7 +117,7 @@ export function TrainingTemplateEditor({
           <button
             type="button"
             onClick={onOpenImport}
-            disabled={disabled || importDisabled}
+            disabled={disabled}
             className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#17324d] disabled:opacity-60"
           >
             文字导入
@@ -173,7 +172,7 @@ export function TrainingTemplateEditor({
               <PanelTag>{day.dayType === 'rest' ? '恢复' : '执行'}</PanelTag>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr]">
+            <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr_0.8fr]">
               <select
                 value={day.dayType}
                 onChange={(event) =>
@@ -215,20 +214,6 @@ export function TrainingTemplateEditor({
                 disabled={day.dayType === 'rest'}
                 className="rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none disabled:bg-[#eef3f7]"
               />
-              <input
-                value={day.durationMinutes ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateDay(draft, dayIndex, (current) => ({
-                      ...current,
-                      durationMinutes: event.target.value ? Number(event.target.value) : null,
-                    })),
-                  )
-                }
-                placeholder="时长（分钟）"
-                disabled={day.dayType === 'rest'}
-                className="rounded-[18px] border border-[#d7e3ec] bg-white px-4 py-3 text-sm text-[#17324d] outline-none disabled:bg-[#eef3f7]"
-              />
             </div>
 
             <div className="mt-3 grid gap-3 md:grid-cols-[1fr_0.8fr]">
@@ -266,21 +251,19 @@ export function TrainingTemplateEditor({
               <div className="mt-4 space-y-3">
                 {day.items.map((item, itemIndex) => (
                   <div key={`${day.weekday}-${itemIndex}`} className="rounded-[20px] bg-white px-4 py-4">
-                    <div className="grid gap-3 md:grid-cols-[1fr_1fr_0.7fr_0.7fr_0.7fr]">
+                    <div className="grid gap-3 md:grid-cols-[1fr_0.7fr_0.7fr_0.7fr]">
                       <input
                         value={item.exerciseName}
                         onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, exerciseName: event.target.value })))
+                          onChange(
+                            updateItem(draft, dayIndex, itemIndex, (current) => ({
+                              ...current,
+                              exerciseName: event.target.value,
+                              exerciseCode: current.exerciseCode.trim() || buildExerciseCodeFromName(event.target.value),
+                            })),
+                          )
                         }
                         placeholder="动作名称"
-                        className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
-                      />
-                      <input
-                        value={item.exerciseCode}
-                        onChange={(event) =>
-                          onChange(updateItem(draft, dayIndex, itemIndex, (current) => ({ ...current, exerciseCode: event.target.value })))
-                        }
-                        placeholder="动作编码"
                         className="rounded-[16px] border border-[#d7e3ec] bg-white px-3 py-2 text-sm text-[#17324d] outline-none"
                       />
                       <input

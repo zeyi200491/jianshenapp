@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$envFile = Join-Path $root '.env'
 
 function Get-EnvValue {
   param(
@@ -21,7 +22,6 @@ function Get-EnvValue {
   }
 
   if ([string]::IsNullOrWhiteSpace($value)) {
-    $envFile = Join-Path $root '.env'
     if (Test-Path -LiteralPath $envFile) {
       $line = Get-Content -LiteralPath $envFile | Where-Object { $_ -match "^${Key}=" } | Select-Object -First 1
       if ($line) {
@@ -37,17 +37,77 @@ function Get-EnvValue {
   return $value
 }
 
+function Set-ProcessEnvValue {
+  param(
+    [string]$Key,
+    [string]$Value
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($Value)) {
+    Set-Item -Path "Env:$Key" -Value $Value
+  }
+}
+
+function New-DevJwtSecret {
+  return ([guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N'))
+}
+
+function New-DevAdminPassword {
+  return "Dev!" + [guid]::NewGuid().ToString('N').Substring(0, 16) + "9a"
+}
+
+$generatedJwtSecret = $false
+$generatedAdminPassword = $false
+
 $apiHost = Get-EnvValue -Key 'API_HOST' -Fallback '127.0.0.1'
 $apiPort = [int](Get-EnvValue -Key 'API_PORT' -Fallback '3050')
 $webPort = [int](Get-EnvValue -Key 'WEB_PORT' -Fallback '3200')
 $aiHost = Get-EnvValue -Key 'AI_SERVICE_HOST' -Fallback '127.0.0.1'
 $aiPort = [int](Get-EnvValue -Key 'AI_SERVICE_PORT' -Fallback '8001')
+$nodeEnv = Get-EnvValue -Key 'NODE_ENV' -Fallback 'development'
+$jwtSecret = Get-EnvValue -Key 'JWT_SECRET' -Fallback ''
+$databaseUrl = Get-EnvValue -Key 'DATABASE_URL' -Fallback "postgresql://campusfit:campusfit_dev@127.0.0.1:5432/campusfit_ai"
+$postgresHost = Get-EnvValue -Key 'POSTGRES_HOST' -Fallback '127.0.0.1'
+$postgresPort = Get-EnvValue -Key 'POSTGRES_PORT' -Fallback '5432'
+$postgresUser = Get-EnvValue -Key 'POSTGRES_USER' -Fallback 'campusfit'
+$postgresPassword = Get-EnvValue -Key 'POSTGRES_PASSWORD' -Fallback 'campusfit_dev'
+$postgresDb = Get-EnvValue -Key 'POSTGRES_DB' -Fallback 'campusfit_ai'
+$aiServiceBaseUrl = Get-EnvValue -Key 'AI_SERVICE_BASE_URL' -Fallback "http://${aiHost}:${aiPort}"
+$adminEmail = Get-EnvValue -Key 'ADMIN_EMAIL' -Fallback 'admin@campusfit.local'
+$adminPassword = Get-EnvValue -Key 'ADMIN_PASSWORD' -Fallback ''
 $apiHealthUrl = "http://${apiHost}:${apiPort}/api/v1/health"
 $webUrl = "http://127.0.0.1:${webPort}"
 $docsUrl = "http://${apiHost}:${apiPort}/docs"
 $aiHealthUrl = "http://${aiHost}:${aiPort}/health"
 $edgeProfileDir = Join-Path $root '.tmp/edge-local-profile'
 $rebuiltServices = [System.Collections.Generic.HashSet[string]]::new()
+
+if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
+  $jwtSecret = New-DevJwtSecret
+  $generatedJwtSecret = $true
+}
+
+if ([string]::IsNullOrWhiteSpace($adminPassword)) {
+  $adminPassword = New-DevAdminPassword
+  $generatedAdminPassword = $true
+}
+
+Set-ProcessEnvValue -Key 'NODE_ENV' -Value $nodeEnv
+Set-ProcessEnvValue -Key 'API_HOST' -Value $apiHost
+Set-ProcessEnvValue -Key 'API_PORT' -Value "$apiPort"
+Set-ProcessEnvValue -Key 'WEB_PORT' -Value "$webPort"
+Set-ProcessEnvValue -Key 'AI_SERVICE_HOST' -Value $aiHost
+Set-ProcessEnvValue -Key 'AI_SERVICE_PORT' -Value "$aiPort"
+Set-ProcessEnvValue -Key 'AI_SERVICE_BASE_URL' -Value $aiServiceBaseUrl
+Set-ProcessEnvValue -Key 'JWT_SECRET' -Value $jwtSecret
+Set-ProcessEnvValue -Key 'DATABASE_URL' -Value $databaseUrl
+Set-ProcessEnvValue -Key 'POSTGRES_HOST' -Value $postgresHost
+Set-ProcessEnvValue -Key 'POSTGRES_PORT' -Value $postgresPort
+Set-ProcessEnvValue -Key 'POSTGRES_USER' -Value $postgresUser
+Set-ProcessEnvValue -Key 'POSTGRES_PASSWORD' -Value $postgresPassword
+Set-ProcessEnvValue -Key 'POSTGRES_DB' -Value $postgresDb
+Set-ProcessEnvValue -Key 'ADMIN_EMAIL' -Value $adminEmail
+Set-ProcessEnvValue -Key 'ADMIN_PASSWORD' -Value $adminPassword
 
 function Test-HttpOk {
   param([string]$Url)
@@ -125,6 +185,54 @@ function Stop-ListeningProcess {
   Write-Host "[$ServiceName] Releasing port $Port from process $listeningPid..." -ForegroundColor Yellow
   Stop-Process -Id $listeningPid -Force -ErrorAction Stop
   Start-Sleep -Seconds 2
+}
+
+function Get-ListeningProcessStartTimeUtc {
+  param([int]$Port)
+
+  $listeningPid = Get-ListeningProcessId -Port $Port
+  if (-not $listeningPid) {
+    return $null
+  }
+
+  try {
+    return (Get-Process -Id $listeningPid -ErrorAction Stop).StartTime.ToUniversalTime()
+  }
+  catch {
+    return $null
+  }
+}
+
+function Get-FileWatchUtc {
+  param([string[]]$Paths)
+
+  $latestUtc = $null
+
+  foreach ($path in $Paths) {
+    if ([string]::IsNullOrWhiteSpace($path) -or (-not (Test-Path -LiteralPath $path))) {
+      continue
+    }
+
+    $item = Get-Item -LiteralPath $path -ErrorAction Stop
+    if ($item.PSIsContainer) {
+      $latestChild = Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\__pycache__\\|\\.pytest_cache\\|\\.mypy_cache\\|\\logs\\' } |
+        Sort-Object -Property LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+
+      if ($latestChild -and (($latestUtc -eq $null) -or ($latestChild.LastWriteTimeUtc -gt $latestUtc))) {
+        $latestUtc = $latestChild.LastWriteTimeUtc
+      }
+
+      continue
+    }
+
+    if (($latestUtc -eq $null) -or ($item.LastWriteTimeUtc -gt $latestUtc)) {
+      $latestUtc = $item.LastWriteTimeUtc
+    }
+  }
+
+  return $latestUtc
 }
 
 function Wait-HttpReady {
@@ -216,7 +324,8 @@ function Start-ManagedService {
     [string]$StartupCommand,
     [int]$Port,
     [string]$HealthUrl,
-    [string]$DesiredDataMode
+    [string]$DesiredDataMode,
+    [string[]]$WatchFilePaths
   )
 
   if (Test-HttpOk -Url $HealthUrl) {
@@ -231,6 +340,18 @@ function Start-ManagedService {
       }
 
       Write-Host "[$ServiceName] Running in $currentDataMode mode, restarting into $DesiredDataMode mode." -ForegroundColor Yellow
+    }
+    elseif ($WatchFilePaths) {
+      $currentProcessStartTimeUtc = Get-ListeningProcessStartTimeUtc -Port $Port
+      $latestWatchUtc = Get-FileWatchUtc -Paths $WatchFilePaths
+
+      if ($currentProcessStartTimeUtc -and $latestWatchUtc -and ($latestWatchUtc -gt $currentProcessStartTimeUtc)) {
+        Write-Host "[$ServiceName] Detected newer watched files, restarting to load latest changes." -ForegroundColor Yellow
+      }
+      else {
+        Write-Host "[$ServiceName] Already running, skipping start." -ForegroundColor DarkGreen
+        return
+      }
     }
     else {
       Write-Host "[$ServiceName] Already running, skipping start." -ForegroundColor DarkGreen
@@ -260,9 +381,9 @@ Ensure-LocalDatabase
 Ensure-BuildArtifacts -ServiceName 'API' -Workdir $apiWorkdir -ArtifactPath (Join-Path $apiWorkdir 'dist/apps/api/src/main.js')
 Ensure-BuildArtifacts -ServiceName 'Web' -Workdir $webWorkdir -ArtifactPath (Join-Path $webWorkdir '.next/BUILD_ID')
 
-Start-ManagedService -ServiceName 'AI' -Workdir $aiWorkdir -StartupCommand "python -m uvicorn app.main:app --host $aiHost --port $aiPort" -Port $aiPort -HealthUrl $aiHealthUrl
-Start-ManagedService -ServiceName 'API' -Workdir $apiWorkdir -StartupCommand 'set API_DATA_MODE=database && npm.cmd run start' -Port $apiPort -HealthUrl $apiHealthUrl -DesiredDataMode 'database'
-Start-ManagedService -ServiceName 'Web' -Workdir $webWorkdir -StartupCommand 'npm.cmd run start' -Port $webPort -HealthUrl $webUrl
+Start-ManagedService -ServiceName 'AI' -Workdir $aiWorkdir -StartupCommand "python -m uvicorn app.main:app --host $aiHost --port $aiPort" -Port $aiPort -HealthUrl $aiHealthUrl -WatchFilePaths @($envFile, $aiWorkdir)
+Start-ManagedService -ServiceName 'API' -Workdir $apiWorkdir -StartupCommand 'set API_DATA_MODE=database && node dist/apps/api/src/main.js' -Port $apiPort -HealthUrl $apiHealthUrl -DesiredDataMode 'database'
+Start-ManagedService -ServiceName 'Web' -Workdir $webWorkdir -StartupCommand 'npm.cmd run start' -Port $webPort -HealthUrl $webUrl -WatchFilePaths @($envFile, (Join-Path $webWorkdir '.next/BUILD_ID'))
 
 function Open-LocalUrl {
   param([string]$Url)
@@ -288,6 +409,15 @@ Write-Host "- AI: $aiHealthUrl"
 Write-Host "- Web: $webUrl"
 Write-Host "- API: $apiHealthUrl"
 Write-Host "- Swagger: $docsUrl"
+
+if ($generatedJwtSecret) {
+  Write-Host "- JWT_SECRET: auto-generated for this run" -ForegroundColor Yellow
+}
+
+if ($generatedAdminPassword) {
+  Write-Host "- ADMIN_EMAIL: $adminEmail" -ForegroundColor Yellow
+  Write-Host "- ADMIN_PASSWORD: $adminPassword" -ForegroundColor Yellow
+}
 
 if (-not $NoOpen) {
   Open-LocalUrl -Url $webUrl

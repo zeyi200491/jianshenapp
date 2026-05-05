@@ -29,7 +29,6 @@ const postgresPort = Number(process.env.POSTGRES_PORT ?? env.POSTGRES_PORT ?? '5
 const postgresUser = process.env.POSTGRES_USER ?? env.POSTGRES_USER ?? 'campusfit';
 const postgresPassword = process.env.POSTGRES_PASSWORD ?? env.POSTGRES_PASSWORD ?? 'campusfit_dev';
 const postgresDatabase = process.env.POSTGRES_DB ?? env.POSTGRES_DB ?? 'campusfit_ai';
-
 function ensureDirectory(targetPath) {
   mkdirSync(targetPath, { recursive: true });
 }
@@ -47,6 +46,31 @@ function appendIfMissing(filePath, marker, content) {
   writeFileSync(filePath, `${current.trimEnd()}\n\n${content}\n`, 'utf8');
 }
 
+function readLogTail(maxLines = 30) {
+  if (!existsSync(LOG_FILE)) {
+    return 'postgres.log 暂未生成。';
+  }
+
+  const lines = readText(LOG_FILE).split(/\r?\n/).filter(Boolean);
+  return lines.slice(-maxLines).join('\n');
+}
+
+function buildStartupDiagnostics(stage) {
+  return [
+    '[CampusFit DB] Startup diagnostics',
+    `- stage: ${stage}`,
+    `- host: ${postgresHost}`,
+    `- port: ${postgresPort}`,
+    `- dataDir: ${DATA_DIR}`,
+    `- dataDirExists: ${existsSync(DATA_DIR)}`,
+    `- pgVersionExists: ${existsSync(PG_VERSION_FILE)}`,
+    `- pidFileExists: ${existsSync(PID_FILE)}`,
+    `- logFile: ${LOG_FILE}`,
+    '- 最近 postgres.log:',
+    readLogTail(),
+  ].join('\n');
+}
+
 function runBinary(binaryPath, args, options = {}) {
   const result = spawnSync(binaryPath, args, {
     cwd: options.cwd ?? ROOT_DIR,
@@ -57,16 +81,23 @@ function runBinary(binaryPath, args, options = {}) {
     },
     stdio: options.stdio ?? 'pipe',
     encoding: 'utf8',
+    timeout: options.timeoutMs ?? 90_000,
   });
 
   if (result.error) {
-    throw result.error;
+    const message = [
+      result.error.message,
+      buildStartupDiagnostics(options.diagnosticsLabel ?? binaryPath),
+    ].join('\n\n');
+    throw new Error(message, { cause: result.error });
   }
 
   if (result.status !== 0) {
     const stdout = result.stdout?.trim() ?? '';
     const stderr = result.stderr?.trim() ?? '';
-    const detail = [stdout, stderr].filter(Boolean).join('\n');
+    const detail = [stdout, stderr, buildStartupDiagnostics(options.diagnosticsLabel ?? binaryPath)]
+      .filter(Boolean)
+      .join('\n\n');
     throw new Error(detail || `${binaryPath} 执行失败，退出码 ${result.status ?? 'unknown'}`);
   }
 
@@ -80,6 +111,7 @@ function getAdminClient(database = 'postgres') {
     user: postgresUser,
     password: postgresPassword,
     database,
+    connectionTimeoutMillis: 3_000,
   });
 }
 
@@ -99,8 +131,11 @@ async function ensureInitialised() {
   ensureDirectory(DATA_ROOT);
 
   if (existsSync(PG_VERSION_FILE)) {
+    console.log('[CampusFit DB] 检测到现有本地 PostgreSQL 数据目录。');
     return;
   }
+
+  console.log('[CampusFit DB] 首次初始化本地 PostgreSQL 数据目录...');
 
   writeFileSync(PASSWORD_FILE, `${postgresPassword}\n`, 'utf8');
 
@@ -116,7 +151,9 @@ async function ensureInitialised() {
       'scram-sha-256',
       '--encoding',
       'UTF8',
-    ]);
+    ], {
+      diagnosticsLabel: 'initdb',
+    });
   } finally {
     if (existsSync(PASSWORD_FILE)) {
       rmSync(PASSWORD_FILE, { force: true });
@@ -153,17 +190,32 @@ async function startServer() {
   }
 
   ensureDirectory(dirname(LOG_FILE));
+  console.log(`[CampusFit DB] 尝试拉起本地 PostgreSQL：${postgresHost}:${postgresPort}`);
 
-  runBinary(postgresBinaryModule.pg_ctl, [
-    'start',
-    '-D',
-    DATA_DIR,
-    '-l',
-    LOG_FILE,
-    '-w',
-    '-o',
-    `-h ${postgresHost} -p ${postgresPort}`,
-  ]);
+  try {
+    runBinary(postgresBinaryModule.pg_ctl, [
+      'start',
+      '-D',
+      DATA_DIR,
+      '-l',
+      LOG_FILE,
+      '-w',
+      '-o',
+      `-h ${postgresHost} -p ${postgresPort}`,
+    ], {
+      diagnosticsLabel: 'pg_ctl start',
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('ETIMEDOUT')) {
+      if (await isDatabaseReachable()) {
+        console.warn('[CampusFit DB] pg_ctl start 已超时，但数据库已经可连接，按启动成功继续。');
+      } else {
+        throw error;
+      }
+    } else {
+      throw error;
+    }
+  }
 
   console.log(`[CampusFit DB] PostgreSQL 已启动：${postgresHost}:${postgresPort}`);
 }
@@ -174,13 +226,17 @@ function stopServer() {
     return;
   }
 
-  runBinary(postgresBinaryModule.pg_ctl, ['stop', '-D', DATA_DIR, '-m', 'fast']);
+  runBinary(postgresBinaryModule.pg_ctl, ['stop', '-D', DATA_DIR, '-m', 'fast'], {
+    diagnosticsLabel: 'pg_ctl stop',
+  });
   console.log('[CampusFit DB] PostgreSQL 已停止。');
 }
 
 function printStatus() {
   try {
-    const output = runBinary(postgresBinaryModule.pg_ctl, ['status', '-D', DATA_DIR]);
+    const output = runBinary(postgresBinaryModule.pg_ctl, ['status', '-D', DATA_DIR], {
+      diagnosticsLabel: 'pg_ctl status',
+    });
     console.log(output || '[CampusFit DB] PostgreSQL 正在运行。');
   } catch (error) {
     console.log(

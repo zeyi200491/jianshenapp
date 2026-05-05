@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 
 import jwt
 from fastapi import Depends, Request
@@ -12,6 +13,7 @@ from app.core.errors import AppError
 logger = logging.getLogger("auth")
 
 JWT_ALGORITHM = "HS256"
+INTERNAL_SERVICE_HEADER = "X-CampusFit-Service-Token"
 
 security_scheme = HTTPBearer(auto_error=False)
 
@@ -32,12 +34,34 @@ def _get_optional_jwt_secret() -> str | None:
     return secret or None
 
 
+def _has_internal_service_token(request: Request, secret: str | None) -> bool:
+    if not secret:
+        return False
+
+    service_token = request.headers.get(INTERNAL_SERVICE_HEADER, "").strip()
+    if not service_token:
+        return False
+
+    return secrets.compare_digest(service_token, secret)
+
+
+def _set_request_identity(request: Request, *, user_id: str, role: str) -> None:
+    request.state.user_id = user_id
+    request.state.user_role = role
+
+
 async def require_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
 ) -> dict[str, object]:
     secret = _get_optional_jwt_secret()
+
+    if _has_internal_service_token(request, secret):
+        _set_request_identity(request, user_id="internal-service", role="service")
+        return {"sub": "internal-service", "role": "service"}
+
     if not secret:
+        _set_request_identity(request, user_id="unauthenticated", role="user")
         return {"sub": "unauthenticated", "role": "user"}
 
     if not credentials:
@@ -63,8 +87,11 @@ async def require_auth(
             status_code=401,
         ) from None
 
-    request.state.user_id = payload.get("sub", "")
-    request.state.user_role = payload.get("role", "user")
+    _set_request_identity(
+        request,
+        user_id=payload.get("sub", ""),
+        role=payload.get("role", "user"),
+    )
     return payload
 
 
@@ -73,19 +100,25 @@ async def optional_auth(
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
 ) -> dict[str, object] | None:
     secret = _get_optional_jwt_secret()
+
+    if _has_internal_service_token(request, secret):
+        _set_request_identity(request, user_id="internal-service", role="service")
+        return {"sub": "internal-service", "role": "service"}
+
     if not secret or not credentials:
-        request.state.user_id = ""
-        request.state.user_role = "anonymous"
+        _set_request_identity(request, user_id="", role="anonymous")
         return None
 
     token = credentials.credentials
     try:
         payload = jwt.decode(token, secret, algorithms=[JWT_ALGORITHM])
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        request.state.user_id = ""
-        request.state.user_role = "anonymous"
+        _set_request_identity(request, user_id="", role="anonymous")
         return None
 
-    request.state.user_id = payload.get("sub", "")
-    request.state.user_role = payload.get("role", "user")
+    _set_request_identity(
+        request,
+        user_id=payload.get("sub", ""),
+        role=payload.get("role", "user"),
+    )
     return payload

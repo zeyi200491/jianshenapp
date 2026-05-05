@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 
 from app.core.limiter import limiter
 from app.core.responses import success_response
@@ -67,3 +70,25 @@ async def rag_ask(
 ) -> dict[str, object]:
     result = await get_ai_orchestrator().rag_ask(payload)
     return success_response(result.model_dump(), request_id=request.state.request_id)
+
+
+@router.post("/rag/ask/stream")
+@limiter.limit("10/minute")
+async def rag_ask_stream(
+    payload: RagAskRequest,
+    request: Request,
+    _auth: dict[str, object] = Depends(require_auth),
+) -> StreamingResponse:
+    async def event_generator():
+        async for event in get_ai_orchestrator().rag_ask_stream(payload):
+            yield f"event: {event['event']}\n".encode("utf-8")
+            yield f"data: {json.dumps(event['data'], ensure_ascii=False)}\n\n".encode("utf-8")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Request-Id": request.state.request_id,
+        },
+    )

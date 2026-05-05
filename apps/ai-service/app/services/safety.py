@@ -58,7 +58,7 @@ class SafetyService:
                 r"ignore\s+(?:previous|above|all|prior)\s+(?:instructions?|directives?|prompts?|rules?)",
                 r"系统(?:提示|指令|消息)",
                 r"system\s*(?:prompt|message|instruction)",
-                r"你(?:现在|从现在开始|现在起)是",
+                r"你(?:现在|从现在开始|现在起)是(?:一个|一名|.+?(?:助手|模型|系统|角色|开发者))",
                 r"you\s+(?:are|now)\s+(?:an?\s+)?",
                 r"输出.*原始.*(?:指令|提示)",
                 r"reveal\s+(?:your|the)\s+(?:instructions?|system prompt)",

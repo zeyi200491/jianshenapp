@@ -1,13 +1,19 @@
+import importlib
+
 import pytest
 from fastapi.testclient import TestClient
 
+from app.models.schemas import RagAskRequest
 from app.core.config import get_settings
-from app.main import app
+import app.main as app_main_module
 from app.services.container import get_ai_orchestrator, get_boundary_policy, get_llm_client
 
 
 @pytest.fixture(autouse=True)
-def reset_service_caches() -> None:
+def reset_service_caches(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "unit_mock")
+    for key in ("AI_OPENAI_BASE_URL", "AI_OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
     get_settings.cache_clear()
     get_llm_client.cache_clear()
     get_boundary_policy.cache_clear()
@@ -21,7 +27,8 @@ def reset_service_caches() -> None:
 
 @pytest.fixture
 def client() -> TestClient:
-    with TestClient(app) as test_client:
+    app_module = importlib.reload(app_main_module)
+    with TestClient(app_module.app) as test_client:
         yield test_client
 
 
@@ -112,6 +119,74 @@ def test_rag_high_risk_blocked(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert body["code"] == "AI_SAFETY_BLOCKED"
+
+
+def test_rag_rejects_unauthenticated_requests_when_jwt_secret_is_configured(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("JWT_SECRET", "service-token-secret")
+
+    response = client.post("/api/v1/rag/ask", json=_diet_payload())
+    body = response.json()
+
+    assert response.status_code == 401
+    assert body["code"] == "UNAUTHORIZED"
+
+
+def test_rag_accepts_internal_service_token_when_jwt_secret_is_configured(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("JWT_SECRET", "service-token-secret")
+
+    response = client.post(
+        "/api/v1/rag/ask",
+        headers={"X-CampusFit-Service-Token": "service-token-secret"},
+        json=_diet_payload(),
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["code"] == "OK"
+
+
+def test_rag_missing_risk_note_falls_back_to_empty_string(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orchestrator = get_ai_orchestrator()
+
+    async def fake_generate_json(*, task_name: str, context: dict) -> dict:
+        return {
+            "answer": "直接回答：先守住蛋白质来源，再做替换。",
+            "tips": ["先补蛋白。"],
+            "riskNote": None,
+        }
+
+    monkeypatch.setattr(orchestrator, "_generate_json", fake_generate_json)
+
+    response = client.post(
+        "/api/v1/rag/ask",
+        json=RagAskRequest(question="食堂没有鸡胸肉怎么办？", top_k=1).model_dump(),
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["code"] == "OK"
+    assert body["data"]["risk_note"] == ""
+
+
+def test_rag_stream_returns_sse_events(client: TestClient) -> None:
+    with client.stream(
+        "POST",
+        "/api/v1/rag/ask/stream",
+        headers={"X-CampusFit-Service-Token": "service-token-secret"},
+        json=_diet_payload(),
+    ) as response:
+        lines = [line for line in response.iter_lines() if line]
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert any("event: chunk" in line for line in lines)
+    assert any("event: done" in line for line in lines)
 
 
 def test_rag_answer_is_structured_and_lightly_links_back_to_today_plan(client: TestClient) -> None:

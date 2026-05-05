@@ -453,6 +453,29 @@ export type ConversationMessage = {
   createdAt: string;
 };
 
+export type ConversationStreamEvent =
+  | {
+      type: 'start';
+      conversationId: string;
+      userMessage: ConversationMessage;
+      assistantMessageId: string;
+    }
+  | {
+      type: 'chunk';
+      assistantMessageId: string;
+      content: string;
+    }
+  | {
+      type: 'done';
+      conversationId: string;
+      assistantMessage: ConversationMessage;
+    }
+  | {
+      type: 'error';
+      code: string;
+      message: string;
+    };
+
 export async function requestEmailCode(email: string) {
   return requestJson<{
     channel: string;
@@ -833,4 +856,126 @@ export async function sendConversationMessage(
     },
     token,
   );
+}
+
+function parseSseFrame(frame: string) {
+  const lines = frame.split('\n');
+  const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim();
+  const data = lines
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trim())
+    .join('\n');
+
+  if (!event || !data) {
+    return null;
+  }
+
+  return { event, data };
+}
+
+async function* readSseEvents(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (!value) {
+        continue;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        const parsed = parseSseFrame(frame);
+        if (parsed) {
+          yield parsed;
+        }
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      const parsed = parseSseFrame(buffer);
+      if (parsed) {
+        yield parsed;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function* streamConversationMessage(
+  token: string,
+  conversationId: string,
+  payload: { content: string; context?: ConversationContext },
+  signal?: AbortSignal,
+): AsyncGenerator<ConversationStreamEvent> {
+  const response = await fetch(`${API_BASE_URL}/ai/conversations/${conversationId}/messages/stream`, {
+    method: 'POST',
+    credentials: 'include',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'X-CampusFit-CSRF': getCsrfToken() ?? '',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let payloadBody: ApiEnvelope<unknown> | null = null;
+    try {
+      payloadBody = (await response.json()) as ApiEnvelope<unknown>;
+    } catch {
+      throw new ApiError('INTERNAL_ERROR', '接口返回了无法解析的响应', response.status, null);
+    }
+    throw new ApiError(payloadBody.code, payloadBody.message, response.status, payloadBody.data);
+  }
+
+  if (!response.body) {
+    throw new ApiError('INTERNAL_ERROR', '流式响应为空', response.status, null);
+  }
+
+  for await (const frame of readSseEvents(response.body)) {
+    const data = JSON.parse(frame.data) as Record<string, unknown>;
+    if (frame.event === 'start') {
+      yield {
+        type: 'start',
+        conversationId: String(data.conversationId),
+        userMessage: data.userMessage as ConversationMessage,
+        assistantMessageId: String(data.assistantMessageId),
+      };
+      continue;
+    }
+    if (frame.event === 'chunk') {
+      yield {
+        type: 'chunk',
+        assistantMessageId: String(data.assistantMessageId),
+        content: String(data.content ?? ''),
+      };
+      continue;
+    }
+    if (frame.event === 'done') {
+      yield {
+        type: 'done',
+        conversationId: String(data.conversationId),
+        assistantMessage: data.assistantMessage as ConversationMessage,
+      };
+      continue;
+    }
+    if (frame.event === 'error') {
+      yield {
+        type: 'error',
+        code: String(data.code ?? 'AI_TIMEOUT'),
+        message: String(data.message ?? 'AI 服务返回异常'),
+      };
+    }
+  }
 }

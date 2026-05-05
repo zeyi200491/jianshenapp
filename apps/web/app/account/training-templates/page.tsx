@@ -26,6 +26,7 @@ import {
 } from '@/components/web/training-templates/training-template-editor';
 import { TrainingTemplateImportDrawer } from '@/components/web/training-templates/training-template-import-drawer';
 import { TrainingTemplateList } from '@/components/web/training-templates/training-template-list';
+import { normalizeTrainingTemplateDraftForSave } from '@/lib/training-template-draft';
 import { describeUserFacingError } from '@/lib/user-facing-error';
 
 type DraftItem = TrainingTemplateDraft['days'][number]['items'][number];
@@ -42,14 +43,14 @@ const weekdayOrder: TrainingTemplateWeekday[] = [
 
 const importExampleText = `周一 休息
 
-周二 胸 肩 三头
+周二 胸肩三头
 杠铃卧推 8×4
 自重臂屈伸 8×3（下胸）
-龙门架绳索下压 12×3（三头外侧）
+绳索下压 12×3（三头外侧）
 
-周三 背 二头
+周三 背二头
 引体向上 8×4
-宽距高位下拉 10×3
+高位下拉 10×3
 二头超级组（站姿+坐姿 10+10×3）`;
 
 function createDefaultItem(): DraftItem {
@@ -112,9 +113,6 @@ function validateDraft(draft: TrainingTemplateDraft) {
     if (!day.splitType?.trim()) {
       return `${day.title} 还没有填写 splitType。`;
     }
-    if (!day.durationMinutes) {
-      return `${day.title} 还没有填写训练时长。`;
-    }
     if (!day.intensityLevel) {
       return `${day.title} 还没有选择训练强度。`;
     }
@@ -124,9 +122,6 @@ function validateDraft(draft: TrainingTemplateDraft) {
     for (const item of day.items) {
       if (!item.exerciseName.trim()) {
         return `${day.title} 里有动作名称为空。`;
-      }
-      if (!item.exerciseCode.trim()) {
-        return `${day.title} 里有动作编码为空。`;
       }
       if (!item.reps.trim()) {
         return `${day.title} 里有动作次数为空。`;
@@ -176,13 +171,15 @@ function toDraft(detail: TrainingTemplateDetail): TrainingTemplateDraft {
 }
 
 function toPayload(draft: TrainingTemplateDraft): TrainingTemplatePayload {
+  const normalizedDraft = normalizeTrainingTemplateDraftForSave(draft);
+
   return {
-    name: draft.name,
-    status: draft.status,
-    isEnabled: draft.isEnabled,
-    isDefault: draft.isDefault,
-    notes: draft.notes,
-    days: draft.days.map((day) => ({
+    name: normalizedDraft.name,
+    status: normalizedDraft.status,
+    isEnabled: normalizedDraft.isEnabled,
+    isDefault: normalizedDraft.isDefault,
+    notes: normalizedDraft.notes,
+    days: normalizedDraft.days.map((day) => ({
       ...day,
       items: day.items.map((item) => ({
         ...item,
@@ -283,38 +280,47 @@ export default function TrainingTemplatesPage() {
     }
   }
 
-  async function handleSaveDraft() {
+  async function persistDraft(currentDraft: TrainingTemplateDraft) {
     const session = getStoredSession();
     if (!session) {
       router.replace('/login');
-      return;
+      return null;
     }
+
+    const validationMessage = validateDraft(currentDraft);
+    if (validationMessage) {
+      setError(validationMessage);
+      return null;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      const payload = toPayload(currentDraft);
+      const saved = currentDraft.id
+        ? await updateTrainingTemplate(session.accessToken, currentDraft.id, payload)
+        : await createTrainingTemplate(session.accessToken, payload);
+
+      await loadTemplates(saved.id);
+      return saved;
+    } catch (saveError) {
+      setError(normalizeError(saveError));
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveDraft() {
     if (!draft) {
       return;
     }
 
-    const validationMessage = validateDraft(draft);
-    if (validationMessage) {
-      setError(validationMessage);
-      return;
-    }
-
-    setSaving(true);
     setMessage('');
-    setError('');
-
-    try {
-      const payload = toPayload(draft);
-      const saved = draft.id
-        ? await updateTrainingTemplate(session.accessToken, draft.id, payload)
-        : await createTrainingTemplate(session.accessToken, payload);
-
-      await loadTemplates(saved.id);
+    const saved = await persistDraft(draft);
+    if (saved) {
       setMessage('训练模板已保存。');
-    } catch (saveError) {
-      setError(normalizeError(saveError));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -354,10 +360,21 @@ export default function TrainingTemplatesPage() {
     }
   }
 
-  function handleOpenImport() {
-    if (!draft?.id) {
-      setError('请先保存这套模板，再使用文字导入。');
+  async function handleOpenImport() {
+    if (!draft) {
+      setError('请先新建一套模板，再使用文字导入。');
       return;
+    }
+
+    setMessage('');
+    setError('');
+
+    if (!draft.id) {
+      const saved = await persistDraft(draft);
+      if (!saved) {
+        return;
+      }
+      setMessage('已先保存当前模板，现在可以继续文字导入。');
     }
 
     setImportOpen(true);
@@ -389,7 +406,7 @@ export default function TrainingTemplatesPage() {
       return;
     }
     if (!draft?.id) {
-      setImportError('请先保存这套模板，再使用文字导入。');
+      setImportError('请先保存模板，再使用文字导入。');
       return;
     }
     if (!importRawText.trim()) {
@@ -504,13 +521,12 @@ export default function TrainingTemplatesPage() {
           draft={draft}
           onChange={setDraft}
           onSave={() => void handleSaveDraft()}
-          onOpenImport={handleOpenImport}
+          onOpenImport={() => void handleOpenImport()}
           disabled={saving || importParsing || importApplying}
-          importDisabled={!draft?.id}
           importHint={
-            draft?.id
-              ? '支持把训练文本解析成周模板，确认后只覆盖勾选的周几。'
-              : '先保存这套模板，再用文字导入覆盖对应的周几。'
+            draft
+              ? '支持把训练文本解析成周模板。首次使用时会先保存当前模板，再进入解析。'
+              : ''
           }
         />
       </section>

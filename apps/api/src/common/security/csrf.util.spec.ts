@@ -39,7 +39,7 @@ describe('CSRF protection for cookie authenticated requests', () => {
         {
           method: 'PATCH',
           headers: {
-            cookie: 'campusfit_access_token=token',
+            cookie: 'campusfit_access_token=token; campusfit_csrf_token=1',
             origin: 'http://evil.example',
             'sec-fetch-site': 'cross-site',
             'x-campusfit-csrf': '1',
@@ -56,7 +56,7 @@ describe('CSRF protection for cookie authenticated requests', () => {
         {
           method: 'DELETE',
           headers: {
-            cookie: 'campusfit_access_token=token',
+            cookie: 'campusfit_access_token=token; campusfit_csrf_token=1',
             origin: 'http://127.0.0.1:3200',
             'sec-fetch-site': 'same-site',
             'x-campusfit-csrf': '1',

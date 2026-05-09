@@ -127,14 +127,17 @@ export class AuthService {
     if (!this.emailSender.isMockProvider()) {
       return undefined;
     }
-    if (process.env.NODE_ENV === 'production') {
+
+    const configured = process.env.AUTH_EMAIL_DEV_CODE_VISIBLE?.trim().toLowerCase();
+    if (configured === 'false') {
       return undefined;
     }
 
-    const configured = process.env.AUTH_EMAIL_DEV_CODE_VISIBLE?.trim().toLowerCase();
-    const shouldExposeInDev = configured !== 'false';
+    if (process.env.NODE_ENV === 'production') {
+      return configured === 'true' ? code : undefined;
+    }
 
-    return shouldExposeInDev ? code : undefined;
+    return code;
   }
 
   private buildMaskedDestination(email: string) {

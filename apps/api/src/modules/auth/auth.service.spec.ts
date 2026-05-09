@@ -84,7 +84,7 @@ describe('AuthService', () => {
     expect(result.devCode).toBeUndefined();
   });
 
-  it('never returns devCode in production even if explicitly enabled', async () => {
+  it('returns devCode in production when mock provider is explicitly allowed for demo environments', async () => {
     process.env.NODE_ENV = 'production';
     process.env.AUTH_EMAIL_DEV_CODE_VISIBLE = 'true';
     const { service } = createService();
@@ -92,7 +92,7 @@ describe('AuthService', () => {
     const result = await service.requestEmailOtp('student@example.com');
 
     expect(result.deliveryMode).toBe('mock');
-    expect(result.devCode).toBeUndefined();
+    expect(result.devCode).toHaveLength(6);
   });
 
   it('logs in with a valid email otp and creates user when needed', async () => {

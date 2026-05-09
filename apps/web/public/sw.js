@@ -1,24 +1,14 @@
-const CACHE_NAME = 'campusfit-v1';
-const STATIC_ASSETS = ['/', '/today', '/check-in', '/diet', '/review', '/login'];
-
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetched = fetch(event.request).then((response) => {
-        if (response.ok && event.request.url.startsWith(self.location.origin)) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      });
-      return cached || fetched;
-    })
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+      await self.clients.claim();
+      await self.registration.unregister();
+    })(),
   );
 });

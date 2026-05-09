@@ -29,13 +29,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
-          }}
-        />
-      </head>
+      <head />
       <body>
         <div className="min-h-screen">
           <a href="#main-content" className="skip-link">
@@ -48,4 +42,3 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     </html>
   );
 }
-

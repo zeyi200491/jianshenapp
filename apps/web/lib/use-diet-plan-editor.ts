@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { ApiError } from '@campusfit/shared';
 import {
-  ApiError,
   fetchToday,
   removeMealIntake,
   searchMealFoods,

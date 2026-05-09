@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { ApiError } from '@campusfit/shared';
 import {
-  ApiError,
   createConversation,
   fetchToday,
   listConversationMessages,

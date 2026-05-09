@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ApiError } from '@campusfit/shared';
 import {
-  ApiError,
   fetchCurrentUser,
   requestDataDeletion,
   type CurrentUserPayload,
@@ -284,4 +284,3 @@ export default function AccountPage() {
     </DashboardShell>
   );
 }
-

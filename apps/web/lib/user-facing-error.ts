@@ -1,4 +1,4 @@
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@campusfit/shared';
 
 type ErrorFallback = {
   whatHappened: string;

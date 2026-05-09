@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { ApiError } from '@campusfit/shared';
 import {
-  ApiError,
   fetchLatestWeeklyReview,
   generateWeeklyReview,
   updateWeeklyReviewActionItem,

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { ApiError } from '@campusfit/shared';
 import {
-  ApiError,
   applyTrainingOverride,
   createConversation,
   fetchCurrentUser,

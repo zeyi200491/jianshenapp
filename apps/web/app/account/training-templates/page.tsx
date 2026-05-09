@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ApiError } from '@campusfit/shared';
 import {
-  ApiError,
   createTrainingTemplate,
   enableTrainingTemplate,
   fetchTrainingTemplateDetail,
